@@ -14,6 +14,11 @@ class VolumeMessage {
   double volume;
 }
 
+class SpeedMessage {
+  int textureId;
+  double speed;
+}
+
 class PositionMessage {
   int textureId;
   int position;
@@ -37,6 +42,7 @@ abstract class VideoPlayerApi {
   PositionMessage position(TextureMessage msg);
   void seekTo(PositionMessage msg);
   void pause(TextureMessage msg);
+  void setSpeed(SpeedMessage msg);
 }
 
 void configurePigeon(PigeonOptions opts) {

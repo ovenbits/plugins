@@ -46,6 +46,8 @@ class FakeController extends ValueNotifier<VideoPlayerValue>
   Future<void> play() async {}
   @override
   Future<void> setLooping(bool looping) async {}
+  @override
+  Future<void> setSpeed(double speed) async {}
 
   @override
   VideoFormat get formatHint => null;
@@ -259,6 +261,17 @@ void main() {
       await controller.setLooping(true);
 
       expect(controller.value.isLooping, isTrue);
+    });
+
+    test('setSpeed', () async {
+      final VideoPlayerController controller = VideoPlayerController.network(
+        'https://127.0.0.1',
+      );
+      await controller.initialize();
+      expect(controller.value.speed, 1.0);
+      await controller.setSpeed(1.5);
+
+      expect(controller.value.speed, 1.5);
     });
 
     test('pause', () async {

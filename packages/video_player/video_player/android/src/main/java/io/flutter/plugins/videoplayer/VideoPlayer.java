@@ -11,6 +11,7 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -235,6 +236,14 @@ final class VideoPlayer {
 
   long getPosition() {
     return exoPlayer.getCurrentPosition();
+  }
+
+  public void setSpeed(double value) {
+    float bracketedValue = (float) value;
+    PlaybackParameters existingParam = exoPlayer.getPlaybackParameters();
+    PlaybackParameters newParameter =
+            new PlaybackParameters(bracketedValue, existingParam.pitch, existingParam.skipSilence);
+    exoPlayer.setPlaybackParameters(newParameter);
   }
 
   @SuppressWarnings("SuspiciousNameCombination")

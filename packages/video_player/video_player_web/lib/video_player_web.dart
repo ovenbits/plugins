@@ -123,6 +123,11 @@ class VideoPlayerPlugin extends VideoPlayerPlatform {
   }
 
   @override
+  Future<void> setSpeed(int textureId, double volume) async {
+    return _videoPlayers[textureId].setSpeed(volume);
+  }
+
+  @override
   Future<Duration> getPosition(int textureId) async {
     _videoPlayers[textureId].sendBufferingUpdate();
     return _videoPlayers[textureId].getPosition();
@@ -223,6 +228,10 @@ class _VideoPlayer {
 
   void seekTo(Duration position) {
     videoElement.currentTime = position.inMilliseconds.toDouble() / 1000;
+  }
+
+  void setSpeed(double value) {
+    videoElement.playbackRate = value;
   }
 
   Duration getPosition() {

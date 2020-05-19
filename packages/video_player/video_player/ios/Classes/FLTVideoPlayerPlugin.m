@@ -359,6 +359,15 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   _player.volume = (float)((volume < 0.0) ? 0.0 : ((volume > 1.0) ? 1.0 : volume));
 }
 
+- (void)setSpeed:(double)speed {
+  if (speed == 1.0 || speed == 0.0) {
+    _player.rate = speed;
+  } else if ((speed > 1.0 && _player.currentItem.canPlayFastForward) ||
+             (speed < 1.0 && _player.currentItem.canPlaySlowForward)) {
+    _player.rate = speed;
+  }
+}
+
 - (CVPixelBufferRef)copyPixelBuffer {
   CMTime outputItemTime = [_videoOutput itemTimeForHostTime:CACurrentMediaTime()];
   if ([_videoOutput hasNewPixelBufferForItemTime:outputItemTime]) {
@@ -536,6 +545,11 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)setVolume:(FLTVolumeMessage*)input error:(FlutterError**)error {
   FLTVideoPlayer* player = _players[input.textureId];
   [player setVolume:[input.volume doubleValue]];
+}
+
+- (void)setSpeed:(FLTSpeedMessage*)input error:(FlutterError**)error {
+  FLTVideoPlayer* player = _players[input.textureId];
+  [player setSpeed:[input.speed doubleValue]];
 }
 
 - (void)play:(FLTTextureMessage*)input error:(FlutterError**)error {

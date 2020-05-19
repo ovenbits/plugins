@@ -170,6 +170,11 @@ public class VideoPlayerPlugin implements FlutterPlugin, VideoPlayerApi {
     player.pause();
   }
 
+  public void setSpeed(Messages.SpeedMessage arg) {
+    VideoPlayer player = videoPlayers.get(arg.getTextureId());
+    player.setSpeed(arg.getSpeed());
+  }
+
   private interface KeyForAssetFn {
     String get(String asset);
   }
