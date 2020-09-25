@@ -121,6 +121,25 @@ class SpeedMessage {
   }
 }
 
+class DurationWatchedMessage {
+  int textureId;
+  int durationWatched;
+  // ignore: unused_element
+  Map<dynamic, dynamic> _toMap() {
+    final Map<dynamic, dynamic> pigeonMap = <dynamic, dynamic>{};
+    pigeonMap['textureId'] = textureId;
+    pigeonMap['durationWatched'] = durationWatched;
+    return pigeonMap;
+  }
+  // ignore: unused_element
+  static DurationWatchedMessage _fromMap(Map<dynamic, dynamic> pigeonMap) {
+    final DurationWatchedMessage result = DurationWatchedMessage();
+    result.textureId = pigeonMap['textureId'];
+    result.durationWatched = pigeonMap['durationWatched'];
+    return result;
+  }
+}
+
 class VideoPlayerApi {
   Future<void> initialize() async {
     const BasicMessageChannel<dynamic> channel =
@@ -338,6 +357,28 @@ class VideoPlayerApi {
           details: error['details']);
     } else {
       // noop
+    }
+    
+  }
+  Future<DurationWatchedMessage> durationWatched(TextureMessage arg) async {
+    final Map<dynamic, dynamic> requestMap = arg._toMap();
+    const BasicMessageChannel<dynamic> channel =
+        BasicMessageChannel<dynamic>('dev.flutter.pigeon.VideoPlayerApi.durationWatched', StandardMessageCodec());
+    
+    final Map<dynamic, dynamic> replyMap = await channel.send(requestMap);
+    if (replyMap == null) {
+      throw PlatformException(
+        code: 'channel-error',
+        message: 'Unable to establish connection on channel.',
+        details: null);
+    } else if (replyMap['error'] != null) {
+      final Map<dynamic, dynamic> error = replyMap['error'];
+      throw PlatformException(
+          code: error['code'],
+          message: error['message'],
+          details: error['details']);
+    } else {
+      return DurationWatchedMessage._fromMap(replyMap['result']);
     }
     
   }

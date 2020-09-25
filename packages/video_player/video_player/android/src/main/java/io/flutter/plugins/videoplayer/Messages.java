@@ -162,6 +162,30 @@ public class Messages {
     }
   }
 
+  /** Generated class from Pigeon that represents data sent in messages. */
+  public static class DurationWatchedMessage {
+    private Long textureId;
+    public Long getTextureId() { return textureId; }
+    public void setTextureId(Long setterArg) { this.textureId = setterArg; }
+
+    private Long durationWatched;
+    public Long getDurationWatched() { return durationWatched; }
+    public void setDurationWatched(Long setterArg) { this.durationWatched = setterArg; }
+
+    HashMap toMap() {
+      HashMap<String, Object> toMapResult = new HashMap<String, Object>();
+      toMapResult.put("textureId", textureId);
+      toMapResult.put("durationWatched", durationWatched);
+      return toMapResult;
+    }
+    static DurationWatchedMessage fromMap(HashMap map) {
+      DurationWatchedMessage fromMapResult = new DurationWatchedMessage();
+      fromMapResult.textureId = (map.get("textureId") instanceof Integer) ? (Integer)map.get("textureId") : (Long)map.get("textureId");
+      fromMapResult.durationWatched = (map.get("durationWatched") instanceof Integer) ? (Integer)map.get("durationWatched") : (Long)map.get("durationWatched");
+      return fromMapResult;
+    }
+  }
+
   /** Generated interface from Pigeon that represents a handler of messages from Flutter.*/
   public interface VideoPlayerApi {
     void initialize();
@@ -174,6 +198,7 @@ public class Messages {
     void seekTo(PositionMessage arg);
     void pause(TextureMessage arg);
     void setSpeed(SpeedMessage arg);
+    DurationWatchedMessage durationWatched(TextureMessage arg);
 
     /** Sets up an instance of `VideoPlayerApi` to handle messages through the `binaryMessenger` */
     public static void setup(BinaryMessenger binaryMessenger, VideoPlayerApi api) {
@@ -385,6 +410,28 @@ public class Messages {
               try {
                 api.setSpeed(input);
                 wrapped.put("result", null);
+              }
+              catch (Exception exception) {
+                wrapped.put("error", wrapError(exception));
+              }
+              reply.reply(wrapped);
+            }
+          });
+        } else {
+          channel.setMessageHandler(null);
+        }
+      }
+      {
+        BasicMessageChannel<Object> channel =
+            new BasicMessageChannel<Object>(binaryMessenger, "dev.flutter.pigeon.VideoPlayerApi.durationWatched", new StandardMessageCodec());
+        if (api != null) {
+          channel.setMessageHandler(new BasicMessageChannel.MessageHandler<Object>() {
+            public void onMessage(Object message, BasicMessageChannel.Reply<Object> reply) {
+              TextureMessage input = TextureMessage.fromMap((HashMap)message);
+              HashMap<String, HashMap> wrapped = new HashMap<String, HashMap>();
+              try {
+                DurationWatchedMessage output = api.durationWatched(input);
+                wrapped.put("result", output.toMap());
               }
               catch (Exception exception) {
                 wrapped.put("error", wrapError(exception));

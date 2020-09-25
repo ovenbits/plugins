@@ -317,6 +317,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     _eventSink(@{
       @"event" : @"initialized",
       @"duration" : @([self duration]),
+      @"durationWatched" : @([self durationWatched]),
       @"width" : @(width),
       @"height" : @(height)
     });
@@ -339,6 +340,17 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 
 - (int64_t)duration {
   return FLTCMTimeToMillis([[_player currentItem] duration]);
+}
+
+- (int64_t)durationWatched {
+  NSTimeInterval durationWatched = 0;
+    
+  AVPlayerItemAccessLog *log = [[_player currentItem] accessLog];
+  for (AVPlayerItemAccessLogEvent *event in log.events) {
+    durationWatched += event.durationWatched;
+  }
+    
+  return durationWatched * 1000;
 }
 
 - (void)seekTo:(int)location {
@@ -568,6 +580,13 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)pause:(FLTTextureMessage*)input error:(FlutterError**)error {
   FLTVideoPlayer* player = _players[input.textureId];
   [player pause];
+}
+
+- (FLTDurationWatchedMessage*)durationWatched:(FLTTextureMessage*)input error:(FlutterError**)error {
+  FLTVideoPlayer* player = _players[input.textureId];
+  FLTDurationWatchedMessage* result = [[FLTDurationWatchedMessage alloc] init];
+  result.durationWatched = @([player durationWatched]);
+  return result;
 }
 
 @end

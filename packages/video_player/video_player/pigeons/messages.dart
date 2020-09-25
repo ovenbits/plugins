@@ -24,6 +24,11 @@ class PositionMessage {
   int position;
 }
 
+class DurationWatchedMessage {
+  int textureId;
+  int durationWatched;
+}
+
 class CreateMessage {
   String asset;
   String uri;
@@ -43,6 +48,7 @@ abstract class VideoPlayerApi {
   void seekTo(PositionMessage msg);
   void pause(TextureMessage msg);
   void setSpeed(SpeedMessage msg);
+  DurationWatchedMessage durationWatched(TextureMessage msg);
 }
 
 void configurePigeon(PigeonOptions opts) {

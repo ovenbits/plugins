@@ -15,6 +15,7 @@ import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
@@ -56,6 +57,8 @@ final class VideoPlayer {
   private final EventChannel eventChannel;
 
   private boolean isInitialized = false;
+
+  private PlaybackStatsListener playbackStatsListener = new PlaybackStatsListener(false, null);
 
   VideoPlayer(
       Context context,
@@ -192,6 +195,8 @@ final class VideoPlayer {
             }
           }
         });
+
+    exoPlayer.addAnalyticsListener(playbackStatsListener);
   }
 
   void sendBufferingUpdate() {
@@ -238,6 +243,10 @@ final class VideoPlayer {
     return exoPlayer.getCurrentPosition();
   }
 
+  long getDurationWatched() {
+    return playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs();
+  }
+
   public void setSpeed(double value) {
     float bracketedValue = (float) value;
     PlaybackParameters existingParam = exoPlayer.getPlaybackParameters();
@@ -252,6 +261,7 @@ final class VideoPlayer {
       Map<String, Object> event = new HashMap<>();
       event.put("event", "initialized");
       event.put("duration", exoPlayer.getDuration());
+      event.put("durationWatched", playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
 
       if (exoPlayer.getVideoFormat() != null) {
         Format videoFormat = exoPlayer.getVideoFormat();

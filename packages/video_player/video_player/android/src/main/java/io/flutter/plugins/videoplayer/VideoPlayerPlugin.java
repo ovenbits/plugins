@@ -7,6 +7,9 @@ package io.flutter.plugins.videoplayer;
 import android.content.Context;
 import android.util.Log;
 import android.util.LongSparseArray;
+
+import java.time.Duration;
+
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.EventChannel;
@@ -17,6 +20,7 @@ import io.flutter.plugins.videoplayer.Messages.PositionMessage;
 import io.flutter.plugins.videoplayer.Messages.TextureMessage;
 import io.flutter.plugins.videoplayer.Messages.VideoPlayerApi;
 import io.flutter.plugins.videoplayer.Messages.VolumeMessage;
+import io.flutter.plugins.videoplayer.Messages.DurationWatchedMessage;
 import io.flutter.view.FlutterMain;
 import io.flutter.view.TextureRegistry;
 
@@ -173,6 +177,13 @@ public class VideoPlayerPlugin implements FlutterPlugin, VideoPlayerApi {
   public void setSpeed(Messages.SpeedMessage arg) {
     VideoPlayer player = videoPlayers.get(arg.getTextureId());
     player.setSpeed(arg.getSpeed());
+  }
+
+  public DurationWatchedMessage durationWatched(TextureMessage arg) {
+    VideoPlayer player = videoPlayers.get(arg.getTextureId());
+    DurationWatchedMessage result = new DurationWatchedMessage();
+    result.setDurationWatched(player.getDurationWatched());
+    return result;
   }
 
   private interface KeyForAssetFn {

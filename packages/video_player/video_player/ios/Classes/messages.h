@@ -13,6 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class FLTVolumeMessage;
 @class FLTPositionMessage;
 @class FLTSpeedMessage;
+@class FLTDurationWatchedMessage;
 
 @interface FLTTextureMessage : NSObject 
 @property(nonatomic, strong, nullable) NSNumber * textureId;
@@ -45,6 +46,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong, nullable) NSNumber * speed;
 @end
 
+@interface FLTDurationWatchedMessage : NSObject 
+@property(nonatomic, strong, nullable) NSNumber * textureId;
+@property(nonatomic, strong, nullable) NSNumber * durationWatched;
+@end
+
 @protocol FLTVideoPlayerApi
 -(void)initialize:(FlutterError * _Nullable * _Nonnull)error;
 -(FLTTextureMessage *)create:(FLTCreateMessage*)input error:(FlutterError * _Nullable * _Nonnull)error;
@@ -56,6 +62,7 @@ NS_ASSUME_NONNULL_BEGIN
 -(void)seekTo:(FLTPositionMessage*)input error:(FlutterError * _Nullable * _Nonnull)error;
 -(void)pause:(FLTTextureMessage*)input error:(FlutterError * _Nullable * _Nonnull)error;
 -(void)setSpeed:(FLTSpeedMessage*)input error:(FlutterError * _Nullable * _Nonnull)error;
+-(FLTDurationWatchedMessage *)durationWatched:(FLTTextureMessage*)input error:(FlutterError * _Nullable * _Nonnull)error;
 @end
 
 extern void FLTVideoPlayerApiSetup(id<FlutterBinaryMessenger> binaryMessenger, id<FLTVideoPlayerApi> api);

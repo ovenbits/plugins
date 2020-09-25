@@ -46,6 +46,10 @@ static NSDictionary* wrapResult(NSDictionary *result, FlutterError *error) {
 +(FLTSpeedMessage*)fromMap:(NSDictionary*)dict;
 -(NSDictionary*)toMap;
 @end
+@interface FLTDurationWatchedMessage ()
++(FLTDurationWatchedMessage*)fromMap:(NSDictionary*)dict;
+-(NSDictionary*)toMap;
+@end
 
 @implementation FLTTextureMessage
 +(FLTTextureMessage*)fromMap:(NSDictionary*)dict {
@@ -156,6 +160,24 @@ static NSDictionary* wrapResult(NSDictionary *result, FlutterError *error) {
 }
 -(NSDictionary*)toMap {
   return [NSDictionary dictionaryWithObjectsAndKeys:(self.textureId ? self.textureId : [NSNull null]), @"textureId", (self.speed ? self.speed : [NSNull null]), @"speed", nil];
+}
+@end
+
+@implementation FLTDurationWatchedMessage
++(FLTDurationWatchedMessage*)fromMap:(NSDictionary*)dict {
+  FLTDurationWatchedMessage* result = [[FLTDurationWatchedMessage alloc] init];
+  result.textureId = dict[@"textureId"];
+  if ((NSNull *)result.textureId == [NSNull null]) {
+    result.textureId = nil;
+  }
+  result.durationWatched = dict[@"durationWatched"];
+  if ((NSNull *)result.durationWatched == [NSNull null]) {
+    result.durationWatched = nil;
+  }
+  return result;
+}
+-(NSDictionary*)toMap {
+  return [NSDictionary dictionaryWithObjectsAndKeys:(self.textureId ? self.textureId : [NSNull null]), @"textureId", (self.durationWatched ? self.durationWatched : [NSNull null]), @"durationWatched", nil];
 }
 @end
 
@@ -323,6 +345,23 @@ void FLTVideoPlayerApiSetup(id<FlutterBinaryMessenger> binaryMessenger, id<FLTVi
         FLTSpeedMessage *input = [FLTSpeedMessage fromMap:message];
         [api setSpeed:input error:&error];
         callback(wrapResult(nil, error));
+      }];
+    }
+    else {
+      [channel setMessageHandler:nil];
+    }
+  }
+  {
+    FlutterBasicMessageChannel *channel =
+      [FlutterBasicMessageChannel
+        messageChannelWithName:@"dev.flutter.pigeon.VideoPlayerApi.durationWatched"
+        binaryMessenger:binaryMessenger];
+    if (api) {
+      [channel setMessageHandler:^(id _Nullable message, FlutterReply callback) {
+        FlutterError *error;
+        FLTTextureMessage *input = [FLTTextureMessage fromMap:message];
+        FLTDurationWatchedMessage *output = [api durationWatched:input error:&error];
+        callback(wrapResult([output toMap], error));
       }];
     }
     else {

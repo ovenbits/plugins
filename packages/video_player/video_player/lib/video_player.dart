@@ -39,6 +39,7 @@ class VideoPlayerValue {
     this.volume = 1.0,
     this.errorDescription,
     this.speed = 1.0,
+    this.durationWatched = const Duration(),
   });
 
   /// Returns an instance with a `null` [Duration].
@@ -91,6 +92,9 @@ class VideoPlayerValue {
   /// The speed of playback.
   final double speed;
 
+  /// The duration of the playback watched
+  final Duration durationWatched;
+
   /// Indicates whether or not the video has been loaded and is ready to play.
   bool get initialized => duration != null;
 
@@ -125,6 +129,7 @@ class VideoPlayerValue {
     double volume,
     String errorDescription,
     double speed,
+    Duration durationWatched,
   }) {
     return VideoPlayerValue(
       duration: duration ?? this.duration,
@@ -138,6 +143,7 @@ class VideoPlayerValue {
       volume: volume ?? this.volume,
       errorDescription: errorDescription ?? this.errorDescription,
       speed: speed ?? this.speed,
+      durationWatched: durationWatched ?? this.durationWatched,
     );
   }
 
@@ -154,7 +160,8 @@ class VideoPlayerValue {
         'isBuffering: $isBuffering'
         'volume: $volume, '
         'errorDescription: $errorDescription), '
-        'speed: $speed';
+        'speed: $speed, '
+        'durationWatched: $durationWatched';
   }
 }
 
@@ -388,10 +395,12 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
             return;
           }
           final Duration newPosition = await position;
+          final Duration newDurationWatched = await durationWatched;
           if (_isDisposed) {
             return;
           }
           _updatePosition(newPosition);
+          _updateDurationWatched(newDurationWatched);
         },
       );
 
@@ -446,6 +455,14 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     return await _videoPlayerPlatform.getPosition(_textureId);
   }
 
+  /// The duration watched in the current video.
+  Future<Duration> get durationWatched async {
+    if (_isDisposed) {
+      return null;
+    }
+    return await _videoPlayerPlatform.getDurationWatched(_textureId);
+  }
+
   /// Sets the video's current timestamp to be at [moment]. The next
   /// time the video is played it will resume from the given [moment].
   ///
@@ -498,6 +515,10 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   void _updatePosition(Duration position) {
     value = value.copyWith(position: position);
     value = value.copyWith(caption: _getCaptionAt(position));
+  }
+
+  void _updateDurationWatched(Duration durationWatched) {
+    value = value.copyWith(durationWatched: durationWatched);
   }
 }
 
