@@ -46,6 +46,7 @@ int64_t FLTCMTimeToMillis(CMTime time) {
 @property(nonatomic, readonly) bool isPlaying;
 @property(nonatomic) bool isLooping;
 @property(nonatomic, readonly) bool isInitialized;
+@property(nonatomic) double rate;
 - (instancetype)initWithURL:(NSURL*)url frameUpdater:(FLTFrameUpdater*)frameUpdater;
 - (void)play;
 - (void)pause;
@@ -196,6 +197,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   _isInitialized = false;
   _isPlaying = false;
   _disposed = false;
+  _rate = 1.0f;
 
   AVAsset* asset = [item asset];
   void (^assetCompletionHandler)(void) = ^{
@@ -296,6 +298,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   }
   if (_isPlaying) {
     [_player play];
+    _player.rate = _rate;
   } else {
     [_player pause];
   }
@@ -370,9 +373,11 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)setSpeed:(double)speed {
   if (speed == 1.0 || speed == 0.0) {
     _player.rate = speed;
+    _rate = speed;
   } else if ((speed > 1.0 && _player.currentItem.canPlayFastForward) ||
              (speed < 1.0 && _player.currentItem.canPlaySlowForward)) {
     _player.rate = speed;
+    _rate = speed;
   }
 }
 
