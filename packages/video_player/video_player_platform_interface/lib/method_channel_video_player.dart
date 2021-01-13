@@ -100,6 +100,13 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
   }
 
   @override
+  Future<void> updateMediaItemInfo(int textureId, MediaItemInfo item) async {
+    await _api.updateMediaItemInfo(MediaItemInfoMessage()
+    ..textureId = textureId
+    ..info = item.toJson());
+  }
+
+  @override
   Stream<VideoEvent> videoEventsFor(int textureId) {
     return _eventChannelFor(textureId)
         .receiveBroadcastStream()

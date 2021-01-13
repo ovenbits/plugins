@@ -29,6 +29,11 @@ class DurationWatchedMessage {
   int durationWatched;
 }
 
+class MediaItemInfoMessage {
+  int textureId;
+  Map<String, dynamic> info;
+}
+
 class CreateMessage {
   String asset;
   String uri;
@@ -49,6 +54,7 @@ abstract class VideoPlayerApi {
   void pause(TextureMessage msg);
   void setSpeed(SpeedMessage msg);
   DurationWatchedMessage durationWatched(TextureMessage msg);
+  void updateMediaItemInfo(MediaItemInfoMessage msg);
 }
 
 void configurePigeon(PigeonOptions opts) {

@@ -113,9 +113,14 @@ abstract class VideoPlayerPlatform {
     throw UnimplementedError('getPosition() has not been implemented.');
   }
 
-  /// Gets the video duratiopn watched as [Duration].
+  /// Gets the video duration watched as [Duration].
   Future<Duration> getDurationWatched(int textureId) {
     throw UnimplementedError('getDurationWatched() has not been implemented.');
+  }
+
+  /// Updates the media item info (e.g. Now Playing widget on iOS).
+  Future<void> updateMediaItemInfo(int textureId, MediaItemInfo item) async {
+    throw UnimplementedError('updateMediaItemInfo() has not been implemented.');
   }
 
   /// Returns a widget displaying the video with a given textureID.
@@ -343,4 +348,122 @@ class DurationRange {
 
   @override
   int get hashCode => start.hashCode ^ end.hashCode;
+}
+
+/// Metadata about a video item that can be played
+class MediaItemInfo {
+  /// A unique id.
+  final String id;
+
+  /// The album this media item belongs to.
+  final String album;
+
+  /// The title of this media item.
+  final String title;
+
+  /// The artist of this media item.
+  final String artist;
+
+  /// The genre of this media item.
+  final String genre;
+
+  /// The duration of this media item.
+  final Duration duration;
+
+  /// The artwork for this media item as a uri.
+  final String artUri;
+
+  /// Override the default title for display purposes.
+  final String displayTitle;
+
+  /// Override the default subtitle for display purposes.
+  final String displaySubtitle;
+
+  /// Override the default description for display purposes.
+  final String displayDescription;
+
+  /// Creates a [MediaItemInfo].
+  ///
+  /// [id], [album] and [title] must not be null, and [id] must be unique for
+  /// each instance.
+  const MediaItemInfo({
+    @required this.id,
+    @required this.album,
+    @required this.title,
+    this.artist,
+    this.genre,
+    this.duration,
+    this.artUri,
+    this.displayTitle,
+    this.displaySubtitle,
+    this.displayDescription,
+  });
+
+  /// Creates a [MediaItemInfo] from a map of key/value pairs corresponding to
+  /// fields of this class.
+  factory MediaItemInfo.fromJson(Map raw) => MediaItemInfo(
+        id: raw['id'],
+        album: raw['album'],
+        title: raw['title'],
+        artist: raw['artist'],
+        genre: raw['genre'],
+        duration: raw['duration'] != null
+            ? Duration(milliseconds: raw['duration'])
+            : null,
+        artUri: raw['artUri'],
+        displayTitle: raw['displayTitle'],
+        displaySubtitle: raw['displaySubtitle'],
+        displayDescription: raw['displayDescription'],
+      );
+
+  /// Creates a copy of this [MediaItemInfo] but with with the given fields
+  /// replaced by new values.
+  MediaItemInfo copyWith({
+    String id,
+    String album,
+    String title,
+    String artist,
+    String genre,
+    Duration duration,
+    String artUri,
+    String displayTitle,
+    String displaySubtitle,
+    String displayDescription,
+  }) =>
+      MediaItemInfo(
+        id: id ?? this.id,
+        album: album ?? this.album,
+        title: title ?? this.title,
+        artist: artist ?? this.artist,
+        genre: genre ?? this.genre,
+        duration: duration ?? this.duration,
+        artUri: artUri ?? this.artUri,
+        displayTitle: displayTitle ?? this.displayTitle,
+        displaySubtitle: displaySubtitle ?? this.displaySubtitle,
+        displayDescription: displayDescription ?? this.displayDescription,
+      );
+
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  bool operator ==(dynamic other) => other is MediaItemInfo && other.id == id;
+
+  @override
+  String toString() => '${toJson()}';
+
+  /// Converts this [MediaItemInfo] to a map of key/value pairs corresponding to
+  /// the fields of this class.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'album': album,
+        'title': title,
+        'artist': artist,
+        'genre': genre,
+        'duration': duration?.inMilliseconds,
+        'artUri': artUri,
+        'displayTitle': displayTitle,
+        'displaySubtitle': displaySubtitle,
+        'displayDescription': displayDescription,
+      };
 }

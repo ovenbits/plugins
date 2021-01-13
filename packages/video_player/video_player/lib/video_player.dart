@@ -12,7 +12,7 @@ import 'package:meta/meta.dart';
 
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 export 'package:video_player_platform_interface/video_player_platform_interface.dart'
-    show DurationRange, DataSourceType, VideoFormat;
+    show DurationRange, DataSourceType, VideoFormat, MediaItemInfo;
 
 import 'src/closed_caption_file.dart';
 export 'src/closed_caption_file.dart';
@@ -520,6 +520,14 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   void _updateDurationWatched(Duration durationWatched) {
     value = value.copyWith(durationWatched: durationWatched);
   }
+
+  /// Updated the media item info of [this].
+  ///
+  /// [item] a [MediaItemInfo] value that contains the necessary information
+  /// to display in the media control system of the device.
+  Future<void> updateMediaItemInfo(MediaItemInfo item) async {
+    await _videoPlayerPlatform.updateMediaItemInfo(_textureId, item);
+  }
 }
 
 class _VideoAppLifeCycleObserver extends Object with WidgetsBindingObserver {
@@ -532,7 +540,7 @@ class _VideoAppLifeCycleObserver extends Object with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
   }
 
-  @override
+  /*@override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.paused:
@@ -546,7 +554,7 @@ class _VideoAppLifeCycleObserver extends Object with WidgetsBindingObserver {
         break;
       default:
     }
-  }
+  }*/
 
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
