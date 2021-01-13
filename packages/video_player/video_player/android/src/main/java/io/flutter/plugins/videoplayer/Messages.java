@@ -242,6 +242,7 @@ public class Messages {
     void setSpeed(SpeedMessage arg);
     DurationWatchedMessage durationWatched(TextureMessage arg);
     void updateMediaItemInfo(MediaItemInfoMessage arg);
+    void clearMediaItemInfo(TextureMessage arg);
 
     /** Sets up an instance of `VideoPlayerApi` to handle messages through the `binaryMessenger` */
     static void setup(BinaryMessenger binaryMessenger, VideoPlayerApi api) {
@@ -484,6 +485,27 @@ public class Messages {
               @SuppressWarnings("ConstantConditions")
               MediaItemInfoMessage input = MediaItemInfoMessage.fromMap((HashMap)message);
               api.updateMediaItemInfo(input);
+              wrapped.put("result", null);
+            }
+            catch (Exception exception) {
+              wrapped.put("error", wrapError(exception));
+            }
+            reply.reply(wrapped);
+          });
+        } else {
+          channel.setMessageHandler(null);
+        }
+      }
+      {
+        BasicMessageChannel<Object> channel =
+            new BasicMessageChannel<>(binaryMessenger, "dev.flutter.pigeon.VideoPlayerApi.clearMediaItemInfo", new StandardMessageCodec());
+        if (api != null) {
+          channel.setMessageHandler((message, reply) -> {
+            HashMap<String, HashMap> wrapped = new HashMap<>();
+            try {
+              @SuppressWarnings("ConstantConditions")
+              TextureMessage input = TextureMessage.fromMap((HashMap)message);
+              api.clearMediaItemInfo(input);
               wrapped.put("result", null);
             }
             catch (Exception exception) {

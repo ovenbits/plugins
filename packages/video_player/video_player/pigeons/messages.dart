@@ -55,6 +55,7 @@ abstract class VideoPlayerApi {
   void setSpeed(SpeedMessage msg);
   DurationWatchedMessage durationWatched(TextureMessage msg);
   void updateMediaItemInfo(MediaItemInfoMessage msg);
+  void clearMediaItemInfo(TextureMessage msg);
 }
 
 void configurePigeon(PigeonOptions opts) {

@@ -98,8 +98,30 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
                                              object:item];
 }
 
+- (void)disableNowPlaying {
+    [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = nil;
+    
+    MPRemoteCommandCenter *commandCenter = [MPRemoteCommandCenter sharedCommandCenter];
+    
+    [commandCenter.togglePlayPauseCommand setEnabled:NO];
+    [commandCenter.togglePlayPauseCommand removeTarget:self];
+    
+    [commandCenter.stopCommand removeTarget:self];
+    [commandCenter.pauseCommand removeTarget:self];
+    [commandCenter.playCommand removeTarget:self];
+    
+    if (@available(iOS 9.1, *)) {
+        [commandCenter.changePlaybackPositionCommand removeTarget:self];
+    }
+    
+    [commandCenter.skipForwardCommand removeTarget:self];
+    [commandCenter.skipBackwardCommand removeTarget:self];
+    [commandCenter.stopCommand removeTarget:self];
+}
+
 - (void)updateNowPlaying {
     if (_nowPlayingInfo == NULL) {
+        [self disableNowPlaying];
         return;
     }
     
@@ -427,6 +449,11 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     [self updateNowPlaying];
 }
 
+- (void)clearMediaItemInfo {
+    _nowPlayingInfo = NULL;
+    [self updateNowPlaying];
+}
+
 - (void)sendInitialized {
   if (_eventSink && !_isInitialized) {
     CGSize size = [self.player currentItem].presentationSize;
@@ -561,6 +588,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)dispose {
   [self disposeSansEventChannel];
   [_eventChannel setStreamHandler:nil];
+  [[AVAudioSession sharedInstance] setActive:NO error:nil];
 }
 
 @end
@@ -652,7 +680,6 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 }
 
 - (void)dispose:(FLTTextureMessage*)input error:(FlutterError**)error {
-  [[AVAudioSession sharedInstance] setActive:NO error:nil];
   FLTVideoPlayer* player = _players[input.textureId];
   [_registry unregisterTexture:input.textureId.intValue];
   [_players removeObjectForKey:input.textureId];
@@ -721,6 +748,11 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)updateMediaItemInfo:(FLTMediaItemInfoMessage *)input error:(FlutterError * _Nullable __autoreleasing *)error {
   FLTVideoPlayer* player = _players[input.textureId];
   [player updateNowPlayingInfoCenter:input.info];
+}
+
+- (void)clearMediaItemInfo:(FLTTextureMessage *)input error:(FlutterError * _Nullable __autoreleasing *)error {
+  FLTVideoPlayer* player = _players[input.textureId];
+  [player clearMediaItemInfo];
 }
 
 @end

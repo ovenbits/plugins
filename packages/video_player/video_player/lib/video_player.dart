@@ -521,12 +521,17 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     value = value.copyWith(durationWatched: durationWatched);
   }
 
-  /// Updated the media item info of [this].
+  /// Update the media item info of [this].
   ///
   /// [item] a [MediaItemInfo] value that contains the necessary information
   /// to display in the media control system of the device.
   Future<void> updateMediaItemInfo(MediaItemInfo item) async {
     await _videoPlayerPlatform.updateMediaItemInfo(_textureId, item);
+  }
+
+  /// Clear the media item info of [this].
+  Future<void> clearMediaItemInfo() async {
+    await _videoPlayerPlatform.clearMediaItemInfo(_textureId);
   }
 }
 

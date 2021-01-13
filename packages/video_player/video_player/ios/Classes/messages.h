@@ -70,6 +70,7 @@ NS_ASSUME_NONNULL_BEGIN
 -(void)setSpeed:(FLTSpeedMessage*)input error:(FlutterError *_Nullable *_Nonnull)error;
 -(nullable FLTDurationWatchedMessage *)durationWatched:(FLTTextureMessage*)input error:(FlutterError *_Nullable *_Nonnull)error;
 -(void)updateMediaItemInfo:(FLTMediaItemInfoMessage*)input error:(FlutterError *_Nullable *_Nonnull)error;
+-(void)clearMediaItemInfo:(FLTTextureMessage*)input error:(FlutterError *_Nullable *_Nonnull)error;
 @end
 
 extern void FLTVideoPlayerApiSetup(id<FlutterBinaryMessenger> binaryMessenger, id<FLTVideoPlayerApi> _Nullable api);

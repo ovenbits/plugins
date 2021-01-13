@@ -103,7 +103,12 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
   Future<void> updateMediaItemInfo(int textureId, MediaItemInfo item) async {
     await _api.updateMediaItemInfo(MediaItemInfoMessage()
     ..textureId = textureId
-    ..info = item.toJson());
+    ..info = item?.toJson());
+  }
+
+  @override
+  Future<void> clearMediaItemInfo(int textureId) async {
+    await _api.clearMediaItemInfo(TextureMessage()..textureId = textureId);
   }
 
   @override

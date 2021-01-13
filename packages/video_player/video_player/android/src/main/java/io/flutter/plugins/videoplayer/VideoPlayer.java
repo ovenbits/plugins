@@ -169,48 +169,6 @@ final class VideoPlayer {
               }
             }
     );
-
-    playerNotificationManager = new PlayerNotificationManager(
-            context,
-            notificationChannelId,
-            316,
-            new PlayerNotificationManager.MediaDescriptionAdapter() {
-              @Override
-              public CharSequence getCurrentContentTitle(Player player) {
-                if (mediaMetadata == null) {
-                  return "";
-                }
-                return mediaMetadata.getDescription().getTitle();
-              }
-
-              @Nullable
-              @Override
-              public PendingIntent createCurrentContentIntent(Player player) {
-                Intent intent = new Intent(context, VideoPlayer.class);
-                return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-              }
-
-              @Nullable
-              @Override
-              public CharSequence getCurrentContentText(Player player) {
-                if (mediaMetadata == null) {
-                  return "";
-                }
-                return mediaMetadata.getDescription().getSubtitle();
-              }
-
-              @Nullable
-              @Override
-              public Bitmap getCurrentLargeIcon(Player player, PlayerNotificationManager.BitmapCallback callback) {
-                if (mediaMetadata != null) {
-                  Uri artworkUri = mediaMetadata.getDescription().getIconUri();
-                  new DownloadImageTask(callback).execute(artworkUri.toString());
-                }
-
-                return null;
-              }
-            }
-    );
     playerNotificationManager.setPlayer(exoPlayer);
     playerNotificationManager.setMediaSessionToken(mediaSession.getSessionToken());
 
@@ -416,8 +374,15 @@ final class VideoPlayer {
     updateNowPlaying();
   }
 
+  void clearMediaItemInfo() {
+    mediaMetadata = null;
+    updateNowPlaying();
+  }
+
   private void updateNowPlaying() {
     mediaSessionConnector.invalidateMediaSessionMetadata();
+    playerNotificationManager.setPlayer(mediaMetadata == null ? null : exoPlayer);
+    playerNotificationManager.setMediaSessionToken(mediaMetadata == null ? null : mediaSession.getSessionToken());
   }
 
   @SuppressWarnings("SuspiciousNameCombination")

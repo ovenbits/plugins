@@ -191,6 +191,11 @@ public class VideoPlayerPlugin implements FlutterPlugin, VideoPlayerApi {
     player.updateMediaItemInfo(arg.getInfo());
   }
 
+  public void clearMediaItemInfo(TextureMessage arg) {
+    VideoPlayer player = videoPlayers.get(arg.getTextureId());
+    player.clearMediaItemInfo();
+  }
+
   private interface KeyForAssetFn {
     String get(String asset);
   }
