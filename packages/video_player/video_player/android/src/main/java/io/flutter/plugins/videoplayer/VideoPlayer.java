@@ -3,10 +3,24 @@ package io.flutter.plugins.videoplayer;
 import static com.google.android.exoplayer2.Player.REPEAT_MODE_ALL;
 import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
+import android.support.v4.media.MediaDescriptionCompat;
+import android.support.v4.media.MediaMetadataCompat;
+import android.support.v4.media.session.MediaSessionCompat;
+import android.support.v4.media.session.PlaybackStateCompat;
 import android.view.Surface;
+import androidx.annotation.Nullable;
+import androidx.core.app.NotificationManagerCompat;
+
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
@@ -17,6 +31,8 @@ import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.analytics.PlaybackStatsListener;
 import com.google.android.exoplayer2.audio.AudioAttributes;
+import com.google.android.exoplayer2.ext.mediasession.MediaSessionConnector;
+import com.google.android.exoplayer2.ext.mediasession.TimelineQueueNavigator;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
@@ -34,6 +50,9 @@ import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.view.TextureRegistry;
+import com.google.android.exoplayer2.ui.PlayerNotificationManager;
+
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,6 +79,11 @@ final class VideoPlayer {
 
   private PlaybackStatsListener playbackStatsListener = new PlaybackStatsListener(false, null);
 
+  private MediaSessionCompat mediaSession;
+  private MediaSessionConnector mediaSessionConnector;
+  private PlayerNotificationManager playerNotificationManager;
+  private MediaMetadataCompat mediaMetadata;
+
   VideoPlayer(
       Context context,
       EventChannel eventChannel,
@@ -71,6 +95,124 @@ final class VideoPlayer {
 
     TrackSelector trackSelector = new DefaultTrackSelector();
     exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector);
+
+    mediaSession = new MediaSessionCompat(context, "media-session");
+    mediaSessionConnector = new MediaSessionConnector(mediaSession);
+    mediaSessionConnector.setPlayer(exoPlayer);
+    mediaSessionConnector.setQueueNavigator(new TimelineQueueNavigator(mediaSession) {
+      @Override
+      public MediaDescriptionCompat getMediaDescription(Player player, int windowIndex) {
+        if (mediaMetadata == null) {
+          return new MediaDescriptionCompat.Builder().build();
+        }
+        return mediaMetadata.getDescription();
+      }
+    });
+    mediaSessionConnector.setEnabledPlaybackActions(
+            PlaybackStateCompat.ACTION_PLAY_PAUSE
+                    | PlaybackStateCompat.ACTION_PLAY
+                    | PlaybackStateCompat.ACTION_PAUSE
+                    | PlaybackStateCompat.ACTION_SEEK_TO
+                    | PlaybackStateCompat.ACTION_FAST_FORWARD
+                    | PlaybackStateCompat.ACTION_REWIND
+                    | PlaybackStateCompat.ACTION_STOP
+    );
+
+    String notificationChannelId = context.getPackageName() + ".video_channel";
+
+    if (Util.SDK_INT >= 26) {
+      NotificationManagerCompat notificationManager = NotificationManagerCompat.from(context);
+      NotificationChannel channel = new NotificationChannel(notificationChannelId, "Video Player Controls", NotificationManager.IMPORTANCE_LOW);
+      notificationManager.createNotificationChannel(channel);
+    }
+
+    playerNotificationManager = new PlayerNotificationManager(
+            context,
+            notificationChannelId,
+            316,
+            new PlayerNotificationManager.MediaDescriptionAdapter() {
+              @Override
+              public CharSequence getCurrentContentTitle(Player player) {
+                if (mediaMetadata == null) {
+                  return "";
+                }
+                return mediaMetadata.getDescription().getTitle();
+              }
+
+              @Nullable
+              @Override
+              public PendingIntent createCurrentContentIntent(Player player) {
+                Intent intent = new Intent(context, VideoPlayer.class);
+                return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+              }
+
+              @Nullable
+              @Override
+              public CharSequence getCurrentContentText(Player player) {
+                if (mediaMetadata == null) {
+                  return "";
+                }
+                return mediaMetadata.getDescription().getSubtitle();
+              }
+
+              @Nullable
+              @Override
+              public Bitmap getCurrentLargeIcon(Player player, PlayerNotificationManager.BitmapCallback callback) {
+                if (mediaMetadata != null) {
+                  Uri artworkUri = mediaMetadata.getDescription().getIconUri();
+                  if (artworkUri != null) {
+                    new DownloadImageTask(callback).execute(artworkUri.toString());
+                  }
+                }
+
+                return null;
+              }
+            }
+    );
+
+    playerNotificationManager = new PlayerNotificationManager(
+            context,
+            notificationChannelId,
+            316,
+            new PlayerNotificationManager.MediaDescriptionAdapter() {
+              @Override
+              public CharSequence getCurrentContentTitle(Player player) {
+                if (mediaMetadata == null) {
+                  return "";
+                }
+                return mediaMetadata.getDescription().getTitle();
+              }
+
+              @Nullable
+              @Override
+              public PendingIntent createCurrentContentIntent(Player player) {
+                Intent intent = new Intent(context, VideoPlayer.class);
+                return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+              }
+
+              @Nullable
+              @Override
+              public CharSequence getCurrentContentText(Player player) {
+                if (mediaMetadata == null) {
+                  return "";
+                }
+                return mediaMetadata.getDescription().getSubtitle();
+              }
+
+              @Nullable
+              @Override
+              public Bitmap getCurrentLargeIcon(Player player, PlayerNotificationManager.BitmapCallback callback) {
+                if (mediaMetadata != null) {
+                  Uri artworkUri = mediaMetadata.getDescription().getIconUri();
+                  new DownloadImageTask(callback).execute(artworkUri.toString());
+                }
+
+                return null;
+              }
+            }
+    );
+    playerNotificationManager.setPlayer(exoPlayer);
+    playerNotificationManager.setMediaSessionToken(mediaSession.getSessionToken());
 
     Uri uri = Uri.parse(dataSource);
 
@@ -219,6 +361,9 @@ final class VideoPlayer {
   }
 
   void play() {
+    if (mediaSession != null) {
+      mediaSession.setActive(true);
+    }
     exoPlayer.setPlayWhenReady(true);
   }
 
@@ -247,12 +392,32 @@ final class VideoPlayer {
     return playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs();
   }
 
-  public void setSpeed(double value) {
+  void setSpeed(double value) {
     float bracketedValue = (float) value;
     PlaybackParameters existingParam = exoPlayer.getPlaybackParameters();
     PlaybackParameters newParameter =
             new PlaybackParameters(bracketedValue, existingParam.pitch, existingParam.skipSilence);
     exoPlayer.setPlaybackParameters(newParameter);
+  }
+
+  void updateMediaItemInfo(HashMap info) {
+    mediaMetadata = createMediaMetadata(
+            (String)info.get("id"),
+            (String)info.get("album"),
+            (String)info.get("title"),
+            (String)info.get("artist"),
+            (String)info.get("genre"),
+            getLong(info.get("duration")),
+            (String)info.get("artUri"),
+            (String)info.get("displayTitle"),
+            (String)info.get("displaySubtitle"),
+            (String)info.get("displayDescription")
+    );
+    updateNowPlaying();
+  }
+
+  private void updateNowPlaying() {
+    mediaSessionConnector.invalidateMediaSessionMetadata();
   }
 
   @SuppressWarnings("SuspiciousNameCombination")
@@ -290,7 +455,60 @@ final class VideoPlayer {
       surface.release();
     }
     if (exoPlayer != null) {
+      playerNotificationManager.setPlayer(null);
       exoPlayer.release();
     }
+    if (mediaSession != null) {
+      mediaSession.setActive(false);
+      mediaSession.release();
+    }
   }
+
+  private MediaMetadataCompat createMediaMetadata(String mediaId, String album, String title, String artist, String genre, Long duration, String artUri, String displayTitle, String displaySubtitle, String displayDescription) {
+    MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
+            .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, mediaId)
+            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, album)
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title);
+    if (artist != null)
+      builder.putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist);
+    if (genre != null)
+      builder.putString(MediaMetadataCompat.METADATA_KEY_GENRE, genre);
+    if (duration != null)
+      builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration);
+    if (artUri != null) {
+      builder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON_URI, artUri);
+    }
+    if (displayTitle != null)
+      builder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, title);
+    if (displaySubtitle != null)
+      builder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_SUBTITLE, displaySubtitle);
+    if (displayDescription != null)
+      builder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_DESCRIPTION, displayDescription);
+    return builder.build();
+  }
+
+  private static Long getLong(Object o) {
+    return (o == null || o instanceof Long) ? (Long)o : Long.valueOf((Integer) o);
+  }
+
+  private static class DownloadImageTask extends AsyncTask<String, Void, Bitmap> {
+    PlayerNotificationManager.BitmapCallback callback;
+    DownloadImageTask(PlayerNotificationManager.BitmapCallback callback) {
+      this.callback = callback;
+    }
+
+    protected Bitmap doInBackground(String... urls) {
+      String url = urls[0];
+      Bitmap bmp = null;
+      try {
+        InputStream in = new java.net.URL(url).openStream();
+        bmp = BitmapFactory.decodeStream(in);
+      } catch (Exception ignored) {}
+      return bmp;
+    }
+    protected void onPostExecute(Bitmap result) {
+      callback.onBitmap(result);
+    }
+  }
+
 }
