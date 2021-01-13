@@ -83,6 +83,7 @@ final class VideoPlayer {
   private MediaSessionConnector mediaSessionConnector;
   private PlayerNotificationManager playerNotificationManager;
   private MediaMetadataCompat mediaMetadata;
+  private MediaSource mediaSource;
 
   VideoPlayer(
       Context context,
@@ -171,6 +172,9 @@ final class VideoPlayer {
     );
     playerNotificationManager.setPlayer(exoPlayer);
     playerNotificationManager.setMediaSessionToken(mediaSession.getSessionToken());
+    playerNotificationManager.setUseStopAction(true);
+    playerNotificationManager.setFastForwardIncrementMs(10000);
+    playerNotificationManager.setRewindIncrementMs(10000);
 
     Uri uri = Uri.parse(dataSource);
 
@@ -187,7 +191,7 @@ final class VideoPlayer {
       dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
     }
 
-    MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, context);
+    mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, context);
     exoPlayer.prepare(mediaSource);
 
     setupVideoPlayer(eventChannel, textureEntry);
@@ -322,6 +326,12 @@ final class VideoPlayer {
     if (mediaSession != null) {
       mediaSession.setActive(true);
     }
+
+    if (exoPlayer.getPlaybackState() == Player.STATE_IDLE && mediaSource != null) {
+      // the player was likely stopped from the notification, so we need to re-prepare it before it'll plays
+      exoPlayer.prepare(mediaSource);
+    }
+
     exoPlayer.setPlayWhenReady(true);
   }
 
