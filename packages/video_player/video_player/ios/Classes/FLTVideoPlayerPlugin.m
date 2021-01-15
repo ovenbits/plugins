@@ -135,7 +135,9 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
     if (artUri != NULL) {
         NSData* data = [NSData dataWithContentsOfURL:[NSURL URLWithString:artUri]];
         UIImage* artwork = [UIImage imageWithData:data];
-        nowPlayingInfo[MPMediaItemPropertyArtwork] = [[MPMediaItemArtwork alloc] initWithImage:artwork];
+        if (artwork != NULL) {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = [[MPMediaItemArtwork alloc] initWithImage:artwork];
+        }
     }
     
     nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = [NSNumber numberWithFloat:CMTimeGetSeconds(_player.currentItem.currentTime)];
