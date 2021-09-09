@@ -1,3 +1,28 @@
+## 0.2.0+1
+
+* Add iOS unit test target.
+* Fix repository link in pubspec.yaml.
+
+## 0.2.0
+
+* Migrate to null safety.
+
+## 0.1.2+4
+
+* Update Flutter SDK constraint.
+
+## 0.1.2+3
+
+* Remove no-op android folder in the example app.
+
+## 0.1.2+2
+
+* Post-v2 Android embedding cleanups.
+
+## 0.1.2+1
+
+* Remove Android folder from `ios_platform_images`.
+
 ## 0.1.2
 
 * Fix crash when parameter extension is null.

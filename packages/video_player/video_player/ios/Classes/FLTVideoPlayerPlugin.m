@@ -1,21 +1,15 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "FLTVideoPlayerPlugin.h"
 #import <AVFoundation/AVFoundation.h>
-#import <MediaPlayer/MediaPlayer.h>
 #import <GLKit/GLKit.h>
 #import "messages.h"
 
 #if !__has_feature(objc_arc)
 #error Code Requires ARC.
 #endif
-
-int64_t FLTCMTimeToMillis(CMTime time) {
-  if (time.timescale == 0) return 0;
-  return time.value * 1000 / time.timescale;
-}
 
 @interface FLTFrameUpdater : NSObject
 @property(nonatomic) int64_t textureId;
@@ -47,10 +41,9 @@ int64_t FLTCMTimeToMillis(CMTime time) {
 @property(nonatomic, readonly) bool isPlaying;
 @property(nonatomic) bool isLooping;
 @property(nonatomic, readonly) bool isInitialized;
-@property(nonatomic) double rate;
-@property(nonatomic) NSDictionary* nowPlayingInfo;
-@property(nonatomic) MPMediaItemArtwork* artwork;
-- (instancetype)initWithURL:(NSURL*)url frameUpdater:(FLTFrameUpdater*)frameUpdater;
+- (instancetype)initWithURL:(NSURL*)url
+               frameUpdater:(FLTFrameUpdater*)frameUpdater
+                httpHeaders:(NSDictionary<NSString*, NSString*>*)headers;
 - (void)play;
 - (void)pause;
 - (void)setIsLooping:(bool)isLooping;
@@ -66,7 +59,7 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
 @implementation FLTVideoPlayer
 - (instancetype)initWithAsset:(NSString*)asset frameUpdater:(FLTFrameUpdater*)frameUpdater {
   NSString* path = [[NSBundle mainBundle] pathForResource:asset ofType:nil];
-  return [self initWithURL:[NSURL fileURLWithPath:path] frameUpdater:frameUpdater];
+  return [self initWithURL:[NSURL fileURLWithPath:path] frameUpdater:frameUpdater httpHeaders:nil];
 }
 
 - (void)addObservers:(AVPlayerItem*)item {
@@ -98,142 +91,6 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
                                              object:item];
 }
 
-- (void)disableNowPlaying {
-    [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = nil;
-    
-    MPRemoteCommandCenter *commandCenter = [MPRemoteCommandCenter sharedCommandCenter];
-    
-    [commandCenter.togglePlayPauseCommand setEnabled:NO];
-    [commandCenter.togglePlayPauseCommand removeTarget:self];
-    
-    [commandCenter.stopCommand removeTarget:self];
-    [commandCenter.pauseCommand removeTarget:self];
-    [commandCenter.playCommand removeTarget:self];
-    
-    if (@available(iOS 9.1, *)) {
-        [commandCenter.changePlaybackPositionCommand removeTarget:self];
-    }
-    
-    [commandCenter.skipForwardCommand removeTarget:self];
-    [commandCenter.skipBackwardCommand removeTarget:self];
-    [commandCenter.stopCommand removeTarget:self];
-}
-
-- (void)updateNowPlaying {
-    if (_nowPlayingInfo == NULL) {
-        [self disableNowPlaying];
-        return;
-    }
-    
-    NSMutableDictionary *nowPlayingInfo = [NSMutableDictionary new];
-    nowPlayingInfo[MPMediaItemPropertyTitle] = _nowPlayingInfo[@"title"];
-    nowPlayingInfo[MPMediaItemPropertyArtist] = _nowPlayingInfo[@"artist"];
-    nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = _nowPlayingInfo[@"album"];
-    nowPlayingInfo[MPMediaItemPropertyGenre] = _nowPlayingInfo[@"genre"];
-    
-    NSString* artUri = _nowPlayingInfo[@"artUri"];
-    if (artUri != NULL) {
-        NSData* data = [NSData dataWithContentsOfURL:[NSURL URLWithString:artUri]];
-        UIImage* artwork = [UIImage imageWithData:data];
-        if (artwork != NULL) {
-            nowPlayingInfo[MPMediaItemPropertyArtwork] = [[MPMediaItemArtwork alloc] initWithImage:artwork];
-        }
-    }
-    
-    nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = [NSNumber numberWithFloat:CMTimeGetSeconds(_player.currentItem.currentTime)];
-    nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = [NSNumber numberWithFloat:CMTimeGetSeconds(_player.currentItem.duration)];
-    nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = [NSNumber numberWithFloat:_player.rate];
-    
-    [[MPNowPlayingInfoCenter defaultCenter] setNowPlayingInfo:nowPlayingInfo];
-    
-    MPRemoteCommandCenter *commandCenter = [MPRemoteCommandCenter sharedCommandCenter];
-    
-    [commandCenter.togglePlayPauseCommand setEnabled:NO];
-    [commandCenter.togglePlayPauseCommand removeTarget:self];
-    [commandCenter.togglePlayPauseCommand setEnabled:YES];
-    [commandCenter.togglePlayPauseCommand addTarget:self action:@selector(togglePlayPause:)];
-    
-    [commandCenter.stopCommand removeTarget:self];
-    [commandCenter.stopCommand addTarget:self action:@selector(stop:)];
-    
-    [commandCenter.pauseCommand removeTarget:self];
-    [commandCenter.pauseCommand addTarget:self action:@selector(pause:)];
-    
-    [commandCenter.playCommand removeTarget:self];
-    [commandCenter.playCommand addTarget:self action:@selector(play:)];
-    
-    if (@available(iOS 9.1, *)) {
-        [commandCenter.changePlaybackPositionCommand removeTarget:self];
-        [commandCenter.changePlaybackPositionCommand addTarget:self action:@selector(changePlaybackPosition:)];
-    }
-    
-    [commandCenter.skipForwardCommand removeTarget:self];
-    [commandCenter.skipForwardCommand addTarget:self action:@selector(skipForwardCommand:)];
-    NSNumber *fastForwardIntervalInSec = [NSNumber numberWithInt:10];
-    commandCenter.skipForwardCommand.preferredIntervals = @[fastForwardIntervalInSec];
-    
-    [commandCenter.skipBackwardCommand removeTarget:self];
-    [commandCenter.skipBackwardCommand addTarget:self action:@selector(skipBackwardCommand:)];
-    NSNumber *rewindIntervalInSec = [NSNumber numberWithInt:10];
-    commandCenter.skipBackwardCommand.preferredIntervals = @[rewindIntervalInSec];
-    
-    [commandCenter.stopCommand removeTarget:self];
-    [commandCenter.stopCommand addTarget:self action:@selector(stop:)];
-}
-
-- (MPRemoteCommandHandlerStatus)togglePlayPause:(MPRemoteCommandEvent*)event {
-    if (_isPlaying) {
-        [self pause];
-    } else {
-        [self play];
-    }
-    return MPRemoteCommandHandlerStatusSuccess;
-}
-
-- (MPRemoteCommandHandlerStatus)stop:(MPRemoteCommandEvent*)event {
-    [self pause];
-    return MPRemoteCommandHandlerStatusSuccess;
-}
-
-- (MPRemoteCommandHandlerStatus)pause:(MPRemoteCommandEvent*)event {
-    [self pause];
-    return MPRemoteCommandHandlerStatusSuccess;
-}
-
-- (MPRemoteCommandHandlerStatus)play:(MPRemoteCommandEvent*)event {
-    [self play];
-    return MPRemoteCommandHandlerStatusSuccess;
-}
-
-- (MPRemoteCommandHandlerStatus)changePlaybackPosition:(MPChangePlaybackPositionCommandEvent*)event {
-    [self seekTo:[NSNumber numberWithDouble:event.positionTime * 1000].intValue];
-    return MPRemoteCommandHandlerStatusSuccess;
-}
-
-- (MPRemoteCommandHandlerStatus)skipForwardCommand:(MPSeekCommandEvent*)event {
-    CMTime currentTime = _player.currentTime;
-    CMTime interval = CMTimeMake(((MPSkipIntervalCommandEvent*)event).interval * 1000, 1000);
-    CMTime skipTime = CMTimeAdd(currentTime, interval);
-    
-    [_player seekToTime:skipTime
-        toleranceBefore:kCMTimeZero
-         toleranceAfter:kCMTimeZero];
-    
-    return MPRemoteCommandHandlerStatusSuccess;
-}
-
-- (MPRemoteCommandHandlerStatus)skipBackwardCommand:(MPSeekCommandEvent*)event {
-    CMTime currentTime = _player.currentTime;
-    CMTime interval = CMTimeMake(((MPSkipIntervalCommandEvent*)event).interval * 1000, 1000);
-    CMTime skipTime = CMTimeSubtract(currentTime, interval);
-    
-    [_player seekToTime:skipTime
-        toleranceBefore:kCMTimeZero
-         toleranceAfter:kCMTimeZero];
-    
-    return MPRemoteCommandHandlerStatusSuccess;
-}
-
 - (void)itemDidPlayToEndTime:(NSNotification*)notification {
   if (_isLooping) {
     AVPlayerItem* p = [notification object];
@@ -243,6 +100,16 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
       _eventSink(@{@"event" : @"completed"});
     }
   }
+}
+
+const int64_t TIME_UNSET = -9223372036854775807;
+
+static inline int64_t FLTCMTimeToMillis(CMTime time) {
+  // When CMTIME_IS_INDEFINITE return a value that matches TIME_UNSET from ExoPlayer2 on Android.
+  // Fixes https://github.com/flutter/flutter/issues/48670
+  if (CMTIME_IS_INDEFINITE(time)) return TIME_UNSET;
+  if (time.timescale == 0) return 0;
+  return time.value * 1000 / time.timescale;
 }
 
 static inline CGFloat radiansToDegrees(CGFloat radians) {
@@ -302,8 +169,15 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   _displayLink.paused = YES;
 }
 
-- (instancetype)initWithURL:(NSURL*)url frameUpdater:(FLTFrameUpdater*)frameUpdater {
-  AVPlayerItem* item = [AVPlayerItem playerItemWithURL:url];
+- (instancetype)initWithURL:(NSURL*)url
+               frameUpdater:(FLTFrameUpdater*)frameUpdater
+                httpHeaders:(NSDictionary<NSString*, NSString*>*)headers {
+  NSDictionary<NSString*, id>* options = nil;
+  if (headers != nil && [headers count] != 0) {
+    options = @{@"AVURLAssetHTTPHeaderFieldsKey" : headers};
+  }
+  AVURLAsset* urlAsset = [AVURLAsset URLAssetWithURL:url options:options];
+  AVPlayerItem* item = [AVPlayerItem playerItemWithAsset:urlAsset];
   return [self initWithPlayerItem:item frameUpdater:frameUpdater];
 }
 
@@ -336,7 +210,6 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   _isInitialized = false;
   _isPlaying = false;
   _disposed = false;
-  _rate = 1.0f;
 
   AVAsset* asset = [item asset];
   void (^assetCompletionHandler)(void) = ^{
@@ -437,23 +310,10 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   }
   if (_isPlaying) {
     [_player play];
-    _player.rate = _rate;
   } else {
     [_player pause];
   }
   _displayLink.paused = !_isPlaying;
-    
-  [self updateNowPlaying];
-}
-
-- (void)updateNowPlayingInfoCenter:(NSDictionary*)info {
-    _nowPlayingInfo = info;
-    [self updateNowPlaying];
-}
-
-- (void)clearMediaItemInfo {
-    _nowPlayingInfo = NULL;
-    [self updateNowPlaying];
 }
 
 - (void)sendInitialized {
@@ -461,7 +321,11 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     CGSize size = [self.player currentItem].presentationSize;
     CGFloat width = size.width;
     CGFloat height = size.height;
-    
+
+    // The player has not yet initialized.
+    if (height == CGSizeZero.height && width == CGSizeZero.width) {
+      return;
+    }
     // The player may be initialized but still needs to determine the duration.
     if ([self duration] == 0) {
       return;
@@ -471,7 +335,6 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     _eventSink(@{
       @"event" : @"initialized",
       @"duration" : @([self duration]),
-      @"durationWatched" : @([self durationWatched]),
       @"width" : @(width),
       @"height" : @(height)
     });
@@ -496,17 +359,6 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   return FLTCMTimeToMillis([[_player currentItem] duration]);
 }
 
-- (int64_t)durationWatched {
-  NSTimeInterval durationWatched = 0;
-    
-  AVPlayerItemAccessLog *log = [[_player currentItem] accessLog];
-  for (AVPlayerItemAccessLogEvent *event in log.events) {
-    durationWatched += event.durationWatched;
-  }
-    
-  return durationWatched * 1000;
-}
-
 - (void)seekTo:(int)location {
   [_player seekToTime:CMTimeMake(location, 1000)
       toleranceBefore:kCMTimeZero
@@ -521,15 +373,28 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   _player.volume = (float)((volume < 0.0) ? 0.0 : ((volume > 1.0) ? 1.0 : volume));
 }
 
-- (void)setSpeed:(double)speed {
-  if (speed == 1.0 || speed == 0.0) {
-    _player.rate = speed;
-    _rate = speed;
-  } else if ((speed > 1.0 && _player.currentItem.canPlayFastForward) ||
-             (speed < 1.0 && _player.currentItem.canPlaySlowForward)) {
-    _player.rate = speed;
-    _rate = speed;
+- (void)setPlaybackSpeed:(double)speed {
+  // See https://developer.apple.com/library/archive/qa/qa1772/_index.html for an explanation of
+  // these checks.
+  if (speed > 2.0 && !_player.currentItem.canPlayFastForward) {
+    if (_eventSink != nil) {
+      _eventSink([FlutterError errorWithCode:@"VideoError"
+                                     message:@"Video cannot be fast-forwarded beyond 2.0x"
+                                     details:nil]);
+    }
+    return;
   }
+
+  if (speed < 1.0 && !_player.currentItem.canPlaySlowForward) {
+    if (_eventSink != nil) {
+      _eventSink([FlutterError errorWithCode:@"VideoError"
+                                     message:@"Video cannot be slow-forwarded"
+                                     details:nil]);
+    }
+    return;
+  }
+
+  _player.rate = speed;
 }
 
 - (CVPixelBufferRef)copyPixelBuffer {
@@ -541,7 +406,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   }
 }
 
-- (void)onTextureUnregistered {
+- (void)onTextureUnregistered:(NSObject<FlutterTexture>*)texture {
   dispatch_async(dispatch_get_main_queue(), ^{
     [self dispose];
   });
@@ -590,7 +455,6 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)dispose {
   [self disposeSansEventChannel];
   [_eventChannel setStreamHandler:nil];
-  [[AVAudioSession sharedInstance] setActive:NO error:nil];
 }
 
 @end
@@ -650,8 +514,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)initialize:(FlutterError* __autoreleasing*)error {
   // Allow audio playback when the Ring/Silent switch is set to silent
   [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:nil];
-  [[AVAudioSession sharedInstance] setActive:YES error:nil];
-    
+
   for (NSNumber* textureId in _players) {
     [_registry unregisterTexture:[textureId unsignedIntegerValue]];
     [_players[textureId] dispose];
@@ -673,7 +536,8 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     return [self onPlayerSetup:player frameUpdater:frameUpdater];
   } else if (input.uri) {
     player = [[FLTVideoPlayer alloc] initWithURL:[NSURL URLWithString:input.uri]
-                                    frameUpdater:frameUpdater];
+                                    frameUpdater:frameUpdater
+                                     httpHeaders:input.httpHeaders];
     return [self onPlayerSetup:player frameUpdater:frameUpdater];
   } else {
     *error = [FlutterError errorWithCode:@"video_player" message:@"not implemented" details:nil];
@@ -713,9 +577,9 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   [player setVolume:[input.volume doubleValue]];
 }
 
-- (void)setSpeed:(FLTSpeedMessage*)input error:(FlutterError**)error {
+- (void)setPlaybackSpeed:(FLTPlaybackSpeedMessage*)input error:(FlutterError**)error {
   FLTVideoPlayer* player = _players[input.textureId];
-  [player setSpeed:[input.speed doubleValue]];
+  [player setPlaybackSpeed:[input.speed doubleValue]];
 }
 
 - (void)play:(FLTTextureMessage*)input error:(FlutterError**)error {
@@ -740,21 +604,15 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   [player pause];
 }
 
-- (FLTDurationWatchedMessage*)durationWatched:(FLTTextureMessage*)input error:(FlutterError**)error {
-  FLTVideoPlayer* player = _players[input.textureId];
-  FLTDurationWatchedMessage* result = [[FLTDurationWatchedMessage alloc] init];
-  result.durationWatched = @([player durationWatched]);
-  return result;
-}
-
-- (void)updateMediaItemInfo:(FLTMediaItemInfoMessage *)input error:(FlutterError * _Nullable __autoreleasing *)error {
-  FLTVideoPlayer* player = _players[input.textureId];
-  [player updateNowPlayingInfoCenter:input.info];
-}
-
-- (void)clearMediaItemInfo:(FLTTextureMessage *)input error:(FlutterError * _Nullable __autoreleasing *)error {
-  FLTVideoPlayer* player = _players[input.textureId];
-  [player clearMediaItemInfo];
+- (void)setMixWithOthers:(FLTMixWithOthersMessage*)input
+                   error:(FlutterError* _Nullable __autoreleasing*)error {
+  if ([input.mixWithOthers boolValue]) {
+    [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback
+                                     withOptions:AVAudioSessionCategoryOptionMixWithOthers
+                                           error:nil];
+  } else {
+    [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:nil];
+  }
 }
 
 @end

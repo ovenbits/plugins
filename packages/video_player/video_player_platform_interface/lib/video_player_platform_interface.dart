@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:meta/meta.dart' show required, visibleForTesting;
+import 'package:meta/meta.dart' show visibleForTesting;
 
 import 'method_channel_video_player.dart';
 
@@ -66,7 +66,7 @@ abstract class VideoPlayerPlatform {
   }
 
   /// Creates an instance of a video player and returns its textureId.
-  Future<int> create(DataSource dataSource) {
+  Future<int?> create(DataSource dataSource) {
     throw UnimplementedError('create() has not been implemented.');
   }
 
@@ -100,12 +100,9 @@ abstract class VideoPlayerPlatform {
     throw UnimplementedError('seekTo() has not been implemented.');
   }
 
-  /// Sets the speed of playback.
-  ///
-  /// [speed] can be 0.5x, 1x, 2x
-  /// by default speed value is 1.0
-  Future<void> setSpeed(int textureId, double speed) {
-    throw UnimplementedError('setSpeed() has not been implemented.');
+  /// Sets the playback speed to a [speed] value indicating the playback rate.
+  Future<void> setPlaybackSpeed(int textureId, double speed) {
+    throw UnimplementedError('setPlaybackSpeed() has not been implemented.');
   }
 
   /// Gets the video position as [Duration] from the start.
@@ -113,24 +110,14 @@ abstract class VideoPlayerPlatform {
     throw UnimplementedError('getPosition() has not been implemented.');
   }
 
-  /// Gets the video duration watched as [Duration].
-  Future<Duration> getDurationWatched(int textureId) {
-    throw UnimplementedError('getDurationWatched() has not been implemented.');
-  }
-
-  /// Updates the media item info (e.g. Now Playing widget on iOS).
-  Future<void> updateMediaItemInfo(int textureId, MediaItemInfo item) async {
-    throw UnimplementedError('updateMediaItemInfo() has not been implemented.');
-  }
-
-  /// Clears the media item info.
-  Future<void> clearMediaItemInfo(int textureId) async {
-    throw UnimplementedError('clearMediaItemInfo() has not been implemented.');
-  }
-
   /// Returns a widget displaying the video with a given textureID.
   Widget buildView(int textureId) {
     throw UnimplementedError('buildView() has not been implemented.');
+  }
+
+  /// Sets the audio mode to mix with other sources
+  Future<void> setMixWithOthers(bool mixWithOthers) {
+    throw UnimplementedError('setMixWithOthers() has not been implemented.');
   }
 
   // This method makes sure that VideoPlayer isn't implemented with `implements`.
@@ -159,11 +146,12 @@ class DataSource {
   /// The [package] argument must be non-null when the asset comes from a
   /// package and null otherwise.
   DataSource({
-    @required this.sourceType,
+    required this.sourceType,
     this.uri,
     this.formatHint,
     this.asset,
     this.package,
+    this.httpHeaders = const {},
   });
 
   /// The way in which the video was originally loaded.
@@ -176,18 +164,23 @@ class DataSource {
   ///
   /// This will be in different formats depending on the [DataSourceType] of
   /// the original video.
-  final String uri;
+  final String? uri;
 
   /// **Android only**. Will override the platform's generic file format
   /// detection with whatever is set here.
-  final VideoFormat formatHint;
+  final VideoFormat? formatHint;
+
+  /// HTTP headers used for the request to the [uri].
+  /// Only for [DataSourceType.network] videos.
+  /// Always empty for other video types.
+  Map<String, String> httpHeaders;
 
   /// The name of the asset. Only set for [DataSourceType.asset] videos.
-  final String asset;
+  final String? asset;
 
   /// The package that the asset was loaded from. Only set for
   /// [DataSourceType.asset] videos.
-  final String package;
+  final String? package;
 }
 
 /// The way in which the video was originally loaded.
@@ -202,7 +195,7 @@ enum DataSourceType {
   network,
 
   /// The video was loaded off of the local filesystem.
-  file
+  file,
 }
 
 /// The file format of the given video.
@@ -217,7 +210,7 @@ enum VideoFormat {
   ss,
 
   /// Any format other than the other ones defined in this enum.
-  other
+  other,
 }
 
 /// Event emitted from the platform implementation.
@@ -229,7 +222,7 @@ class VideoEvent {
   /// Depending on the [eventType], the [duration], [size] and [buffered]
   /// arguments can be null.
   VideoEvent({
-    @required this.eventType,
+    required this.eventType,
     this.duration,
     this.size,
     this.buffered,
@@ -241,17 +234,17 @@ class VideoEvent {
   /// Duration of the video.
   ///
   /// Only used if [eventType] is [VideoEventType.initialized].
-  final Duration duration;
+  final Duration? duration;
 
   /// Size of the video.
   ///
   /// Only used if [eventType] is [VideoEventType.initialized].
-  final Size size;
+  final Size? size;
 
   /// Buffered parts of the video.
   ///
   /// Only used if [eventType] is [VideoEventType.bufferingUpdate].
-  final List<DurationRange> buffered;
+  final List<DurationRange>? buffered;
 
   @override
   bool operator ==(Object other) {
@@ -355,120 +348,15 @@ class DurationRange {
   int get hashCode => start.hashCode ^ end.hashCode;
 }
 
-/// Metadata about a video item that can be played
-class MediaItemInfo {
-  /// A unique id.
-  final String id;
-
-  /// The album this media item belongs to.
-  final String album;
-
-  /// The title of this media item.
-  final String title;
-
-  /// The artist of this media item.
-  final String artist;
-
-  /// The genre of this media item.
-  final String genre;
-
-  /// The duration of this media item.
-  final Duration duration;
-
-  /// The artwork for this media item as a uri.
-  final String artUri;
-
-  /// Override the default title for display purposes.
-  final String displayTitle;
-
-  /// Override the default subtitle for display purposes.
-  final String displaySubtitle;
-
-  /// Override the default description for display purposes.
-  final String displayDescription;
-
-  /// Creates a [MediaItemInfo].
+/// [VideoPlayerOptions] can be optionally used to set additional player settings
+class VideoPlayerOptions {
+  /// Set this to true to mix the video players audio with other audio sources.
+  /// The default value is false
   ///
-  /// [id], [album] and [title] must not be null, and [id] must be unique for
-  /// each instance.
-  const MediaItemInfo({
-    @required this.id,
-    @required this.album,
-    @required this.title,
-    this.artist,
-    this.genre,
-    this.duration,
-    this.artUri,
-    this.displayTitle,
-    this.displaySubtitle,
-    this.displayDescription,
-  });
+  /// Note: This option will be silently ignored in the web platform (there is
+  /// currently no way to implement this feature in this platform).
+  final bool mixWithOthers;
 
-  /// Creates a [MediaItemInfo] from a map of key/value pairs corresponding to
-  /// fields of this class.
-  factory MediaItemInfo.fromJson(Map raw) => MediaItemInfo(
-        id: raw['id'],
-        album: raw['album'],
-        title: raw['title'],
-        artist: raw['artist'],
-        genre: raw['genre'],
-        duration: raw['duration'] != null
-            ? Duration(milliseconds: raw['duration'])
-            : null,
-        artUri: raw['artUri'],
-        displayTitle: raw['displayTitle'],
-        displaySubtitle: raw['displaySubtitle'],
-        displayDescription: raw['displayDescription'],
-      );
-
-  /// Creates a copy of this [MediaItemInfo] but with with the given fields
-  /// replaced by new values.
-  MediaItemInfo copyWith({
-    String id,
-    String album,
-    String title,
-    String artist,
-    String genre,
-    Duration duration,
-    String artUri,
-    String displayTitle,
-    String displaySubtitle,
-    String displayDescription,
-  }) =>
-      MediaItemInfo(
-        id: id ?? this.id,
-        album: album ?? this.album,
-        title: title ?? this.title,
-        artist: artist ?? this.artist,
-        genre: genre ?? this.genre,
-        duration: duration ?? this.duration,
-        artUri: artUri ?? this.artUri,
-        displayTitle: displayTitle ?? this.displayTitle,
-        displaySubtitle: displaySubtitle ?? this.displaySubtitle,
-        displayDescription: displayDescription ?? this.displayDescription,
-      );
-
-  @override
-  int get hashCode => id.hashCode;
-
-  @override
-  bool operator ==(dynamic other) => other is MediaItemInfo && other.id == id;
-
-  @override
-  String toString() => '${toJson()}';
-
-  /// Converts this [MediaItemInfo] to a map of key/value pairs corresponding to
-  /// the fields of this class.
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'album': album,
-        'title': title,
-        'artist': artist,
-        'genre': genre,
-        'duration': duration?.inMilliseconds,
-        'artUri': artUri,
-        'displayTitle': displayTitle,
-        'displaySubtitle': displaySubtitle,
-        'displayDescription': displayDescription,
-      };
+  /// set additional optional player settings
+  VideoPlayerOptions({this.mixWithOthers = false});
 }
