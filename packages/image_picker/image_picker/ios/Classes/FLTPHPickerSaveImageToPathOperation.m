@@ -88,8 +88,8 @@ typedef void (^GetSavedPath)(NSString *);
                             NSError *_Nullable error) {
           if ([image isKindOfClass:[UIImage class]]) {
             __block UIImage *localImage = image;
-            PHAsset *originalAsset =
-                [FLTImagePickerPhotoAssetUtil getAssetFromPHPickerResult:self.result];
+            PHAsset *originalAsset;
+            // originalAsset = [FLTImagePickerPhotoAssetUtil getAssetFromPHPickerResult:self.result];
 
             if (self.maxWidth != (id)[NSNull null] || self.maxHeight != (id)[NSNull null]) {
               localImage = [FLTImagePickerImageUtil scaledImage:localImage

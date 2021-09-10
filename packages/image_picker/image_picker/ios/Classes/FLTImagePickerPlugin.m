@@ -97,7 +97,7 @@ typedef NS_ENUM(NSInteger, ImagePickerClassType) { UIImagePickerClassType, PHPic
 
   self.maxImagesAllowed = maxImagesAllowed;
 
-  [self checkPhotoAuthorizationForAccessLevel];
+  [self showPhotoLibrary:PHPickerClassType];
 }
 
 - (void)pickImageWithUIImagePicker {
@@ -485,7 +485,8 @@ typedef NS_ENUM(NSInteger, ImagePickerClassType) { UIImagePickerClassType, PHPic
     NSNumber *imageQuality = [_arguments objectForKey:@"imageQuality"];
     NSNumber *desiredImageQuality = [self getDesiredImageQuality:imageQuality];
 
-    PHAsset *originalAsset = [FLTImagePickerPhotoAssetUtil getAssetFromImagePickerInfo:info];
+    PHAsset *originalAsset;
+    // originalAsset = [FLTImagePickerPhotoAssetUtil getAssetFromImagePickerInfo:info];
 
     if (maxWidth != (id)[NSNull null] || maxHeight != (id)[NSNull null]) {
       image = [FLTImagePickerImageUtil scaledImage:image
