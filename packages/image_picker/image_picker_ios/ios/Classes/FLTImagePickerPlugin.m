@@ -119,7 +119,7 @@ typedef NS_ENUM(NSInteger, ImagePickerClassType) { UIImagePickerClassType, PHPic
   _pickerViewController.presentationController.delegate = self;
   self.callContext = context;
 
-  [self checkPhotoAuthorizationForAccessLevel];
+  [self showPhotoLibrary:PHPickerClassType];
 }
 
 - (void)launchUIImagePickerWithSource:(nonnull FLTSourceSpecification *)source
@@ -554,7 +554,8 @@ typedef NS_ENUM(NSInteger, ImagePickerClassType) { UIImagePickerClassType, PHPic
     NSNumber *imageQuality = self.callContext.imageQuality;
     NSNumber *desiredImageQuality = [self getDesiredImageQuality:imageQuality];
 
-    PHAsset *originalAsset = [FLTImagePickerPhotoAssetUtil getAssetFromImagePickerInfo:info];
+    PHAsset *originalAsset;
+    //originalAsset = [FLTImagePickerPhotoAssetUtil getAssetFromImagePickerInfo:info];
 
     if (maxWidth != nil || maxHeight != nil) {
       image = [FLTImagePickerImageUtil scaledImage:image

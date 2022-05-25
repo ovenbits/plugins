@@ -113,7 +113,8 @@ typedef void (^GetSavedPath)(NSString *);
  * Processes the image.
  */
 - (void)processImage:(UIImage *)localImage API_AVAILABLE(ios(14)) {
-  PHAsset *originalAsset = [FLTImagePickerPhotoAssetUtil getAssetFromPHPickerResult:self.result];
+  PHAsset *originalAsset;
+  // originalAsset = [FLTImagePickerPhotoAssetUtil getAssetFromPHPickerResult:self.result];
 
   if (self.maxWidth != nil || self.maxHeight != nil) {
     localImage = [FLTImagePickerImageUtil scaledImage:localImage
