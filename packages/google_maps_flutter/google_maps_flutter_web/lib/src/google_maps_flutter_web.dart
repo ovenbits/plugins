@@ -14,28 +14,32 @@ class GoogleMapsPlugin extends GoogleMapsFlutterPlatform {
   }
 
   // A cache of map controllers by map Id.
-  Map _mapById = Map<int, GoogleMapController>();
+  Map<int, GoogleMapController> _mapById = <int, GoogleMapController>{};
 
   /// Allows tests to inject controllers without going through the buildView flow.
   @visibleForTesting
+  // ignore: use_setters_to_change_properties
   void debugSetMapById(Map<int, GoogleMapController> mapById) {
     _mapById = mapById;
   }
 
   // Convenience getter for a stream of events filtered by their mapId.
-  Stream<MapEvent> _events(int mapId) => _map(mapId).events;
+  Stream<MapEvent<Object?>> _events(int mapId) => _map(mapId).events;
 
   // Convenience getter for a map controller by its mapId.
   GoogleMapController _map(int mapId) {
-    final controller = _mapById[mapId];
+    final GoogleMapController? controller = _mapById[mapId];
     assert(controller != null,
         'Maps cannot be retrieved before calling buildView!');
-    return controller;
+    return controller!;
   }
 
   @override
   Future<void> init(int mapId) async {
-    _map(mapId).init();
+    // The internal instance of our controller is initialized eagerly in `buildView`,
+    // so we don't have to do anything in this method, which is left intentionally
+    // blank.
+    assert(_map(mapId) != null, 'Must call buildWidget before init!');
   }
 
   /// Updates the options of a given `mapId`.
@@ -131,7 +135,7 @@ class GoogleMapsPlugin extends GoogleMapsFlutterPlatform {
     String? mapStyle, {
     required int mapId,
   }) async {
-    _map(mapId).updateRawOptions({
+    _map(mapId).updateRawOptions(<String, dynamic>{
       'styles': _mapStyles(mapStyle),
     });
   }
@@ -238,6 +242,16 @@ class GoogleMapsPlugin extends GoogleMapsFlutterPlatform {
   }
 
   @override
+  Stream<MarkerDragStartEvent> onMarkerDragStart({required int mapId}) {
+    return _events(mapId).whereType<MarkerDragStartEvent>();
+  }
+
+  @override
+  Stream<MarkerDragEvent> onMarkerDrag({required int mapId}) {
+    return _events(mapId).whereType<MarkerDragEvent>();
+  }
+
+  @override
   Stream<MarkerDragEndEvent> onMarkerDragEnd({required int mapId}) {
     return _events(mapId).whereType<MarkerDragEndEvent>();
   }
@@ -290,13 +304,13 @@ class GoogleMapsPlugin extends GoogleMapsFlutterPlatform {
   }) {
     // Bail fast if we've already rendered this map ID...
     if (_mapById[creationId]?.widget != null) {
-      return _mapById[creationId].widget;
+      return _mapById[creationId]!.widget!;
     }
 
-    final StreamController<MapEvent> controller =
-        StreamController<MapEvent>.broadcast();
+    final StreamController<MapEvent<Object?>> controller =
+        StreamController<MapEvent<Object?>>.broadcast();
 
-    final mapController = GoogleMapController(
+    final GoogleMapController mapController = GoogleMapController(
       initialCameraPosition: initialCameraPosition,
       mapId: creationId,
       streamController: controller,
@@ -305,11 +319,19 @@ class GoogleMapsPlugin extends GoogleMapsFlutterPlatform {
       polylines: polylines,
       circles: circles,
       mapOptions: mapOptions,
-    );
+    )..init(); // Initialize the controller
 
     _mapById[creationId] = mapController;
 
-    onPlatformViewCreated.call(creationId);
+    mapController.events
+        .whereType<WebMapReadyEvent>()
+        .first
+        .then((WebMapReadyEvent event) {
+      assert(creationId == event.mapId,
+          'Received WebMapReadyEvent for the wrong map');
+      // Notify the plugin now that there's a fully initialized controller.
+      onPlatformViewCreated.call(event.mapId);
+    });
 
     assert(mapController.widget != null,
         'The widget of a GoogleMapController cannot be null before calling dispose on it.');

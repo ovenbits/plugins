@@ -6,31 +6,41 @@ part of google_maps_flutter_web;
 
 /// The `MarkerController` class wraps a [gmaps.Marker], how it handles events, and its associated (optional) [gmaps.InfoWindow] widget.
 class MarkerController {
-  gmaps.Marker? _marker;
-
-  final bool _consumeTapEvents;
-
-  final gmaps.InfoWindow? _infoWindow;
-
-  bool _infoWindowShown = false;
-
   /// Creates a `MarkerController`, which wraps a [gmaps.Marker] object, its `onTap`/`onDrag` behavior, and its associated [gmaps.InfoWindow].
   MarkerController({
     required gmaps.Marker marker,
     gmaps.InfoWindow? infoWindow,
     bool consumeTapEvents = false,
+    LatLngCallback? onDragStart,
+    LatLngCallback? onDrag,
     LatLngCallback? onDragEnd,
     ui.VoidCallback? onTap,
   })  : _marker = marker,
         _infoWindow = infoWindow,
         _consumeTapEvents = consumeTapEvents {
     if (onTap != null) {
-      marker.onClick.listen((event) {
+      marker.onClick.listen((gmaps.MapMouseEvent event) {
         onTap.call();
       });
     }
+    if (onDragStart != null) {
+      marker.onDragstart.listen((gmaps.MapMouseEvent event) {
+        if (marker != null) {
+          marker.position = event.latLng;
+        }
+        onDragStart.call(event.latLng ?? _nullGmapsLatLng);
+      });
+    }
+    if (onDrag != null) {
+      marker.onDrag.listen((gmaps.MapMouseEvent event) {
+        if (marker != null) {
+          marker.position = event.latLng;
+        }
+        onDrag.call(event.latLng ?? _nullGmapsLatLng);
+      });
+    }
     if (onDragEnd != null) {
-      marker.onDragend.listen((event) {
+      marker.onDragend.listen((gmaps.MapMouseEvent event) {
         if (marker != null) {
           marker.position = event.latLng;
         }
@@ -38,6 +48,14 @@ class MarkerController {
       });
     }
   }
+
+  gmaps.Marker? _marker;
+
+  final bool _consumeTapEvents;
+
+  final gmaps.InfoWindow? _infoWindow;
+
+  bool _infoWindowShown = false;
 
   /// Returns `true` if this Controller will use its own `onTap` handler to consume events.
   bool get consumeTapEvents => _consumeTapEvents;

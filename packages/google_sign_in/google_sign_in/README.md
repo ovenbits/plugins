@@ -6,6 +6,10 @@ _Note_: This plugin is still under development, and some APIs might not be
 available yet. [Feedback](https://github.com/flutter/flutter/issues) and
 [Pull Requests](https://github.com/flutter/plugins/pulls) are most welcome!
 
+|             | Android | iOS    | Web |
+|-------------|---------|--------|-----|
+| **Support** | SDK 16+ | iOS 9+ | Any |
+
 ## Platform integration
 
 ### Android integration
@@ -26,6 +30,8 @@ Make sure you've filled out all required fields in the console for
 Otherwise, you may encounter `APIException` errors.
 
 ### iOS integration
+
+This plugin requires iOS 9.0 or higher.
 
 1. [First register your application](https://firebase.google.com/docs/ios/setup).
 2. Make sure the file you download in step 1 is named

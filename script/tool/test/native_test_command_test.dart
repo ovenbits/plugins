@@ -8,10 +8,12 @@ import 'dart:io' as io;
 import 'package:args/command_runner.dart';
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
+import 'package:flutter_plugin_tools/src/common/cmake.dart';
 import 'package:flutter_plugin_tools/src/common/core.dart';
 import 'package:flutter_plugin_tools/src/common/file_utils.dart';
 import 'package:flutter_plugin_tools/src/common/plugin_utils.dart';
 import 'package:flutter_plugin_tools/src/native_test_command.dart';
+import 'package:platform/platform.dart';
 import 'package:test/test.dart';
 
 import 'mocks.dart';
@@ -53,6 +55,16 @@ final Map<String, dynamic> _kDeviceListMap = <String, dynamic>{
   }
 };
 
+const String _fakeCmakeCommand = 'path/to/cmake';
+
+void _createFakeCMakeCache(RepositoryPackage plugin, Platform platform) {
+  final CMakeProject project = CMakeProject(getExampleDir(plugin),
+      platform: platform, buildMode: 'Release');
+  final File cache = project.buildDirectory.childFile('CMakeCache.txt');
+  cache.createSync(recursive: true);
+  cache.writeAsStringSync('CMAKE_COMMAND:INTERNAL=$_fakeCmakeCommand');
+}
+
 // TODO(stuartmorgan): Rework these tests to use a mock Xcode instead of
 // doing all the process mocking and validation.
 void main() {
@@ -67,7 +79,10 @@ void main() {
 
     setUp(() {
       fileSystem = MemoryFileSystem();
-      mockPlatform = MockPlatform(isMacOS: true);
+      // iOS and macOS tests expect macOS, Linux tests expect Linux; nothing
+      // needs to distinguish between Linux and macOS, so set both to true to
+      // allow them to share a setup group.
+      mockPlatform = MockPlatform(isMacOS: true, isLinux: true);
       packagesDir = createPackagesDirectory(fileSystem: fileSystem);
       processRunner = RecordingProcessRunner();
       final NativeTestCommand command = NativeTestCommand(packagesDir,
@@ -77,6 +92,80 @@ void main() {
           'native_test_command', 'Test for native_test_command');
       runner.addCommand(command);
     });
+
+    // Returns a MockProcess to provide for "xcrun xcodebuild -list" for a
+    // project that contains [targets].
+    MockProcess _getMockXcodebuildListProcess(List<String> targets) {
+      final Map<String, dynamic> projects = <String, dynamic>{
+        'project': <String, dynamic>{
+          'targets': targets,
+        }
+      };
+      return MockProcess(stdout: jsonEncode(projects));
+    }
+
+    // Returns the ProcessCall to expect for checking the targets present in
+    // the [package]'s [platform]/Runner.xcodeproj.
+    ProcessCall _getTargetCheckCall(Directory package, String platform) {
+      return ProcessCall(
+          'xcrun',
+          <String>[
+            'xcodebuild',
+            '-list',
+            '-json',
+            '-project',
+            package
+                .childDirectory(platform)
+                .childDirectory('Runner.xcodeproj')
+                .path,
+          ],
+          null);
+    }
+
+    // Returns the ProcessCall to expect for running the tests in the
+    // workspace [platform]/Runner.xcworkspace, with the given extra flags.
+    ProcessCall _getRunTestCall(
+      Directory package,
+      String platform, {
+      String? destination,
+      List<String> extraFlags = const <String>[],
+    }) {
+      return ProcessCall(
+          'xcrun',
+          <String>[
+            'xcodebuild',
+            'test',
+            '-workspace',
+            '$platform/Runner.xcworkspace',
+            '-scheme',
+            'Runner',
+            '-configuration',
+            'Debug',
+            if (destination != null) ...<String>['-destination', destination],
+            ...extraFlags,
+            'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
+          ],
+          package.path);
+    }
+
+    // Returns the ProcessCall to expect for build the Linux unit tests for the
+    // given plugin.
+    ProcessCall _getLinuxBuildCall(RepositoryPackage plugin) {
+      return ProcessCall(
+          'cmake',
+          <String>[
+            '--build',
+            getExampleDir(plugin)
+                .childDirectory('build')
+                .childDirectory('linux')
+                .childDirectory('x64')
+                .childDirectory('release')
+                .path,
+            '--target',
+            'unit_tests'
+          ],
+          null);
+    }
 
     test('fails if no platforms are provided', () async {
       Error? commandError;
@@ -115,40 +204,34 @@ void main() {
     });
 
     test('reports skips with no tests', () async {
-      final Directory pluginDirectory1 = createFakePlugin('plugin', packagesDir,
+      final RepositoryPackage plugin = createFakePlugin('plugin', packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformMacos: const PlatformDetails(PlatformSupport.inline),
+            platformMacOS: const PlatformDetails(PlatformSupport.inline),
           });
 
-      final Directory pluginExampleDirectory =
-          pluginDirectory1.childDirectory('example');
+      final Directory pluginExampleDirectory = getExampleDir(plugin);
 
       processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
+        _getMockXcodebuildListProcess(<String>['RunnerTests', 'RunnerUITests']),
         // Exit code 66 from testing indicates no tests.
         MockProcess(exitCode: 66),
       ];
-      final List<String> output =
-          await runCapturingPrint(runner, <String>['native-test', '--macos']);
+      final List<String> output = await runCapturingPrint(
+          runner, <String>['native-test', '--macos', '--no-unit']);
 
-      expect(output, contains(contains('No tests found.')));
+      expect(
+          output,
+          containsAllInOrder(<Matcher>[
+            contains('No tests found.'),
+            contains('Skipped 1 package(s)'),
+          ]));
 
       expect(
           processRunner.recordedCalls,
           orderedEquals(<ProcessCall>[
-            ProcessCall(
-                'xcrun',
-                const <String>[
-                  'xcodebuild',
-                  'test',
-                  '-workspace',
-                  'macos/Runner.xcworkspace',
-                  '-scheme',
-                  'Runner',
-                  '-configuration',
-                  'Debug',
-                  'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
-                ],
-                pluginExampleDirectory.path),
+            _getTargetCheckCall(pluginExampleDirectory, 'macos'),
+            _getRunTestCall(pluginExampleDirectory, 'macos',
+                extraFlags: <String>['-only-testing:RunnerUITests']),
           ]));
     });
 
@@ -156,7 +239,7 @@ void main() {
       test('skip if iOS is not supported', () async {
         createFakePlugin('plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformMacos: const PlatformDetails(PlatformSupport.inline),
+              platformMacOS: const PlatformDetails(PlatformSupport.inline),
             });
 
         final List<String> output = await runCapturingPrint(runner,
@@ -173,7 +256,7 @@ void main() {
       test('skip if iOS is implemented in a federated package', () async {
         createFakePlugin('plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformIos: const PlatformDetails(PlatformSupport.federated)
+              platformIOS: const PlatformDetails(PlatformSupport.federated)
             });
 
         final List<String> output = await runCapturingPrint(runner,
@@ -188,13 +271,17 @@ void main() {
       });
 
       test('running with correct destination', () async {
-        final Directory pluginDirectory = createFakePlugin(
-            'plugin', packagesDir, platformSupport: <String, PlatformDetails>{
-          kPlatformIos: const PlatformDetails(PlatformSupport.inline)
-        });
+        final RepositoryPackage plugin = createFakePlugin('plugin', packagesDir,
+            platformSupport: <String, PlatformDetails>{
+              platformIOS: const PlatformDetails(PlatformSupport.inline)
+            });
 
-        final Directory pluginExampleDirectory =
-            pluginDirectory.childDirectory('example');
+        final Directory pluginExampleDirectory = getExampleDir(plugin);
+
+        processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
+          _getMockXcodebuildListProcess(
+              <String>['RunnerTests', 'RunnerUITests']),
+        ];
 
         final List<String> output = await runCapturingPrint(runner, <String>[
           'native-test',
@@ -213,36 +300,24 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
-              ProcessCall(
-                  'xcrun',
-                  const <String>[
-                    'xcodebuild',
-                    'test',
-                    '-workspace',
-                    'ios/Runner.xcworkspace',
-                    '-scheme',
-                    'Runner',
-                    '-configuration',
-                    'Debug',
-                    '-destination',
-                    'foo_destination',
-                    'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
-                  ],
-                  pluginExampleDirectory.path),
+              _getTargetCheckCall(pluginExampleDirectory, 'ios'),
+              _getRunTestCall(pluginExampleDirectory, 'ios',
+                  destination: 'foo_destination'),
             ]));
       });
 
       test('Not specifying --ios-destination assigns an available simulator',
           () async {
-        final Directory pluginDirectory = createFakePlugin(
-            'plugin', packagesDir, platformSupport: <String, PlatformDetails>{
-          kPlatformIos: const PlatformDetails(PlatformSupport.inline)
-        });
-        final Directory pluginExampleDirectory =
-            pluginDirectory.childDirectory('example');
+        final RepositoryPackage plugin = createFakePlugin('plugin', packagesDir,
+            platformSupport: <String, PlatformDetails>{
+              platformIOS: const PlatformDetails(PlatformSupport.inline)
+            });
+        final Directory pluginExampleDirectory = getExampleDir(plugin);
 
         processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
           MockProcess(stdout: jsonEncode(_kDeviceListMap)), // simctl
+          _getMockXcodebuildListProcess(
+              <String>['RunnerTests', 'RunnerUITests']),
         ];
 
         await runCapturingPrint(runner, <String>['native-test', '--ios']);
@@ -261,22 +336,9 @@ void main() {
                     '--json',
                   ],
                   null),
-              ProcessCall(
-                  'xcrun',
-                  const <String>[
-                    'xcodebuild',
-                    'test',
-                    '-workspace',
-                    'ios/Runner.xcworkspace',
-                    '-scheme',
-                    'Runner',
-                    '-configuration',
-                    'Debug',
-                    '-destination',
-                    'id=1E76A0FD-38AC-4537-A989-EA639D7D012A',
-                    'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
-                  ],
-                  pluginExampleDirectory.path),
+              _getTargetCheckCall(pluginExampleDirectory, 'ios'),
+              _getRunTestCall(pluginExampleDirectory, 'ios',
+                  destination: 'id=1E76A0FD-38AC-4537-A989-EA639D7D012A'),
             ]));
       });
     });
@@ -300,7 +362,7 @@ void main() {
       test('skip if macOS is implemented in a federated package', () async {
         createFakePlugin('plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformMacos: const PlatformDetails(PlatformSupport.federated),
+              platformMacOS: const PlatformDetails(PlatformSupport.federated),
             });
 
         final List<String> output =
@@ -316,14 +378,17 @@ void main() {
       });
 
       test('runs for macOS plugin', () async {
-        final Directory pluginDirectory1 = createFakePlugin(
-            'plugin', packagesDir,
+        final RepositoryPackage plugin = createFakePlugin('plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformMacos: const PlatformDetails(PlatformSupport.inline),
+              platformMacOS: const PlatformDetails(PlatformSupport.inline),
             });
 
-        final Directory pluginExampleDirectory =
-            pluginDirectory1.childDirectory('example');
+        final Directory pluginExampleDirectory = getExampleDir(plugin);
+
+        processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
+          _getMockXcodebuildListProcess(
+              <String>['RunnerTests', 'RunnerUITests']),
+        ];
 
         final List<String> output = await runCapturingPrint(runner, <String>[
           'native-test',
@@ -338,31 +403,19 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
-              ProcessCall(
-                  'xcrun',
-                  const <String>[
-                    'xcodebuild',
-                    'test',
-                    '-workspace',
-                    'macos/Runner.xcworkspace',
-                    '-scheme',
-                    'Runner',
-                    '-configuration',
-                    'Debug',
-                    'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
-                  ],
-                  pluginExampleDirectory.path),
+              _getTargetCheckCall(pluginExampleDirectory, 'macos'),
+              _getRunTestCall(pluginExampleDirectory, 'macos'),
             ]));
       });
     });
 
     group('Android', () {
       test('runs Java unit tests in Android implementation folder', () async {
-        final Directory plugin = createFakePlugin(
+        final RepositoryPackage plugin = createFakePlugin(
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'example/android/gradlew',
@@ -372,8 +425,10 @@ void main() {
 
         await runCapturingPrint(runner, <String>['native-test', '--android']);
 
-        final Directory androidFolder =
-            plugin.childDirectory('example').childDirectory('android');
+        final Directory androidFolder = plugin
+            .getExamples()
+            .first
+            .platformDirectory(FlutterPlatform.android);
 
         expect(
           processRunner.recordedCalls,
@@ -388,11 +443,11 @@ void main() {
       });
 
       test('runs Java unit tests in example folder', () async {
-        final Directory plugin = createFakePlugin(
+        final RepositoryPackage plugin = createFakePlugin(
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'example/android/gradlew',
@@ -402,8 +457,10 @@ void main() {
 
         await runCapturingPrint(runner, <String>['native-test', '--android']);
 
-        final Directory androidFolder =
-            plugin.childDirectory('example').childDirectory('android');
+        final Directory androidFolder = plugin
+            .getExamples()
+            .first
+            .platformDirectory(FlutterPlatform.android);
 
         expect(
           processRunner.recordedCalls,
@@ -418,11 +475,11 @@ void main() {
       });
 
       test('runs Java integration tests', () async {
-        final Directory plugin = createFakePlugin(
+        final RepositoryPackage plugin = createFakePlugin(
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'example/android/gradlew',
@@ -430,10 +487,13 @@ void main() {
           ],
         );
 
-        await runCapturingPrint(runner, <String>['native-test', '--android']);
+        await runCapturingPrint(
+            runner, <String>['native-test', '--android', '--no-unit']);
 
-        final Directory androidFolder =
-            plugin.childDirectory('example').childDirectory('android');
+        final Directory androidFolder = plugin
+            .getExamples()
+            .first
+            .platformDirectory(FlutterPlatform.android);
 
         expect(
           processRunner.recordedCalls,
@@ -457,7 +517,7 @@ void main() {
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'example/android/gradlew',
@@ -467,7 +527,8 @@ void main() {
           ],
         );
 
-        await runCapturingPrint(runner, <String>['native-test', '--android']);
+        await runCapturingPrint(
+            runner, <String>['native-test', '--android', '--no-unit']);
 
         // Nothing should run since those files are all
         // integration_test-specific.
@@ -478,11 +539,11 @@ void main() {
       });
 
       test('runs all tests when present', () async {
-        final Directory plugin = createFakePlugin(
+        final RepositoryPackage plugin = createFakePlugin(
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'android/src/test/example_test.java',
@@ -493,8 +554,10 @@ void main() {
 
         await runCapturingPrint(runner, <String>['native-test', '--android']);
 
-        final Directory androidFolder =
-            plugin.childDirectory('example').childDirectory('android');
+        final Directory androidFolder = plugin
+            .getExamples()
+            .first
+            .platformDirectory(FlutterPlatform.android);
 
         expect(
           processRunner.recordedCalls,
@@ -517,11 +580,11 @@ void main() {
       });
 
       test('honors --no-unit', () async {
-        final Directory plugin = createFakePlugin(
+        final RepositoryPackage plugin = createFakePlugin(
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'android/src/test/example_test.java',
@@ -533,8 +596,10 @@ void main() {
         await runCapturingPrint(
             runner, <String>['native-test', '--android', '--no-unit']);
 
-        final Directory androidFolder =
-            plugin.childDirectory('example').childDirectory('android');
+        final Directory androidFolder = plugin
+            .getExamples()
+            .first
+            .platformDirectory(FlutterPlatform.android);
 
         expect(
           processRunner.recordedCalls,
@@ -552,11 +617,11 @@ void main() {
       });
 
       test('honors --no-integration', () async {
-        final Directory plugin = createFakePlugin(
+        final RepositoryPackage plugin = createFakePlugin(
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'android/src/test/example_test.java',
@@ -568,8 +633,10 @@ void main() {
         await runCapturingPrint(
             runner, <String>['native-test', '--android', '--no-integration']);
 
-        final Directory androidFolder =
-            plugin.childDirectory('example').childDirectory('android');
+        final Directory androidFolder = plugin
+            .getExamples()
+            .first
+            .platformDirectory(FlutterPlatform.android);
 
         expect(
           processRunner.recordedCalls,
@@ -588,7 +655,7 @@ void main() {
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'example/android/app/src/test/example_test.java',
@@ -620,7 +687,7 @@ void main() {
           'plugin1',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'example/android/gradlew',
@@ -632,7 +699,7 @@ void main() {
           'plugin2',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'android/src/test/example_test.java',
@@ -641,7 +708,11 @@ void main() {
         );
 
         final List<String> output = await runCapturingPrint(
-            runner, <String>['native-test', '--android']);
+            runner, <String>['native-test', '--android'],
+            errorHandler: (Error e) {
+          // Having no unit tests is fatal, but that's not the point of this
+          // test so just ignore the failure.
+        });
 
         expect(
             output,
@@ -654,12 +725,12 @@ void main() {
             ]));
       });
 
-      test('fails when a test fails', () async {
-        final Directory pluginDir = createFakePlugin(
+      test('fails when a unit test fails', () async {
+        final RepositoryPackage plugin = createFakePlugin(
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
           extraFiles: <String>[
             'example/android/gradlew',
@@ -667,9 +738,10 @@ void main() {
           ],
         );
 
-        final String gradlewPath = pluginDir
-            .childDirectory('example')
-            .childDirectory('android')
+        final String gradlewPath = plugin
+            .getExamples()
+            .first
+            .platformDirectory(FlutterPlatform.android)
             .childFile('gradlew')
             .path;
         processRunner.mockProcessesForExecutable[gradlewPath] = <io.Process>[
@@ -695,6 +767,85 @@ void main() {
         );
       });
 
+      test('fails when an integration test fails', () async {
+        final RepositoryPackage plugin = createFakePlugin(
+          'plugin',
+          packagesDir,
+          platformSupport: <String, PlatformDetails>{
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
+          },
+          extraFiles: <String>[
+            'example/android/gradlew',
+            'example/android/app/src/test/example_test.java',
+            'example/android/app/src/androidTest/IntegrationTest.java',
+          ],
+        );
+
+        final String gradlewPath = plugin
+            .getExamples()
+            .first
+            .platformDirectory(FlutterPlatform.android)
+            .childFile('gradlew')
+            .path;
+        processRunner.mockProcessesForExecutable[gradlewPath] = <io.Process>[
+          MockProcess(), // unit passes
+          MockProcess(exitCode: 1), // integration fails
+        ];
+
+        Error? commandError;
+        final List<String> output = await runCapturingPrint(
+            runner, <String>['native-test', '--android'],
+            errorHandler: (Error e) {
+          commandError = e;
+        });
+
+        expect(commandError, isA<ToolExit>());
+
+        expect(
+          output,
+          containsAllInOrder(<Matcher>[
+            contains('plugin/example integration tests failed.'),
+            contains('The following packages had errors:'),
+            contains('plugin')
+          ]),
+        );
+      });
+
+      test('fails if there are no unit tests', () async {
+        createFakePlugin(
+          'plugin',
+          packagesDir,
+          platformSupport: <String, PlatformDetails>{
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
+          },
+          extraFiles: <String>[
+            'example/android/gradlew',
+            'example/android/app/src/androidTest/IntegrationTest.java',
+          ],
+        );
+
+        Error? commandError;
+        final List<String> output = await runCapturingPrint(
+            runner, <String>['native-test', '--android'],
+            errorHandler: (Error e) {
+          commandError = e;
+        });
+
+        expect(commandError, isA<ToolExit>());
+
+        expect(
+          output,
+          containsAllInOrder(<Matcher>[
+            contains('No Android unit tests found for plugin/example'),
+            contains(
+                'No unit tests ran. Plugins are required to have unit tests.'),
+            contains('The following packages had errors:'),
+            contains('plugin:\n'
+                '    No unit tests ran (use --exclude if this is intentional).')
+          ]),
+        );
+      });
+
       test('skips if Android is not supported', () async {
         createFakePlugin(
           'plugin',
@@ -713,22 +864,21 @@ void main() {
         );
       });
 
-      test('skips when running no tests', () async {
+      test('skips when running no tests in integration-only mode', () async {
         createFakePlugin(
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline)
+            platformAndroid: const PlatformDetails(PlatformSupport.inline)
           },
         );
 
         final List<String> output = await runCapturingPrint(
-            runner, <String>['native-test', '--android']);
+            runner, <String>['native-test', '--android', '--no-unit']);
 
         expect(
           output,
           containsAllInOrder(<Matcher>[
-            contains('No Android unit tests found for plugin/example'),
             contains('No Android integration tests found for plugin/example'),
             contains('SKIPPING: No tests found.'),
           ]),
@@ -737,17 +887,18 @@ void main() {
     });
 
     group('Linux', () {
-      test('runs unit tests', () async {
+      test('builds and runs unit tests', () async {
         const String testBinaryRelativePath =
-            'build/linux/foo/release/bar/plugin_test';
-        final Directory pluginDirectory =
+            'build/linux/x64/release/bar/plugin_test';
+        final RepositoryPackage plugin =
             createFakePlugin('plugin', packagesDir, extraFiles: <String>[
           'example/$testBinaryRelativePath'
         ], platformSupport: <String, PlatformDetails>{
-          kPlatformLinux: const PlatformDetails(PlatformSupport.inline),
+          platformLinux: const PlatformDetails(PlatformSupport.inline),
         });
+        _createFakeCMakeCache(plugin, mockPlatform);
 
-        final File testBinary = childFileWithSubcomponents(pluginDirectory,
+        final File testBinary = childFileWithSubcomponents(plugin.directory,
             <String>['example', ...testBinaryRelativePath.split('/')]);
 
         final List<String> output = await runCapturingPrint(runner, <String>[
@@ -767,25 +918,27 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
+              _getLinuxBuildCall(plugin),
               ProcessCall(testBinary.path, const <String>[], null),
             ]));
       });
 
       test('only runs release unit tests', () async {
         const String debugTestBinaryRelativePath =
-            'build/linux/foo/debug/bar/plugin_test';
+            'build/linux/x64/debug/bar/plugin_test';
         const String releaseTestBinaryRelativePath =
-            'build/linux/foo/release/bar/plugin_test';
-        final Directory pluginDirectory =
+            'build/linux/x64/release/bar/plugin_test';
+        final RepositoryPackage plugin =
             createFakePlugin('plugin', packagesDir, extraFiles: <String>[
           'example/$debugTestBinaryRelativePath',
           'example/$releaseTestBinaryRelativePath'
         ], platformSupport: <String, PlatformDetails>{
-          kPlatformLinux: const PlatformDetails(PlatformSupport.inline),
+          platformLinux: const PlatformDetails(PlatformSupport.inline),
         });
+        _createFakeCMakeCache(plugin, mockPlatform);
 
         final File releaseTestBinary = childFileWithSubcomponents(
-            pluginDirectory,
+            plugin.directory,
             <String>['example', ...releaseTestBinaryRelativePath.split('/')]);
 
         final List<String> output = await runCapturingPrint(runner, <String>[
@@ -802,19 +955,47 @@ void main() {
           ]),
         );
 
-        // Only the release version should be run.
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
+              _getLinuxBuildCall(plugin),
               ProcessCall(releaseTestBinary.path, const <String>[], null),
             ]));
       });
 
-      test('fails if there are no unit tests', () async {
+      test('fails if CMake has not been configured', () async {
         createFakePlugin('plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformLinux: const PlatformDetails(PlatformSupport.inline),
+              platformLinux: const PlatformDetails(PlatformSupport.inline),
             });
+
+        Error? commandError;
+        final List<String> output = await runCapturingPrint(runner, <String>[
+          'native-test',
+          '--linux',
+          '--no-integration',
+        ], errorHandler: (Error e) {
+          commandError = e;
+        });
+
+        expect(commandError, isA<ToolExit>());
+        expect(
+          output,
+          containsAllInOrder(<Matcher>[
+            contains('plugin:\n'
+                '    Examples must be built before testing.')
+          ]),
+        );
+
+        expect(processRunner.recordedCalls, orderedEquals(<ProcessCall>[]));
+      });
+
+      test('fails if there are no unit tests', () async {
+        final RepositoryPackage plugin = createFakePlugin('plugin', packagesDir,
+            platformSupport: <String, PlatformDetails>{
+              platformLinux: const PlatformDetails(PlatformSupport.inline),
+            });
+        _createFakeCMakeCache(plugin, mockPlatform);
 
         Error? commandError;
         final List<String> output = await runCapturingPrint(runner, <String>[
@@ -833,20 +1014,25 @@ void main() {
           ]),
         );
 
-        expect(processRunner.recordedCalls, orderedEquals(<ProcessCall>[]));
+        expect(
+            processRunner.recordedCalls,
+            orderedEquals(<ProcessCall>[
+              _getLinuxBuildCall(plugin),
+            ]));
       });
 
       test('fails if a unit test fails', () async {
         const String testBinaryRelativePath =
-            'build/linux/foo/release/bar/plugin_test';
-        final Directory pluginDirectory =
+            'build/linux/x64/release/bar/plugin_test';
+        final RepositoryPackage plugin =
             createFakePlugin('plugin', packagesDir, extraFiles: <String>[
           'example/$testBinaryRelativePath'
         ], platformSupport: <String, PlatformDetails>{
-          kPlatformLinux: const PlatformDetails(PlatformSupport.inline),
+          platformLinux: const PlatformDetails(PlatformSupport.inline),
         });
+        _createFakeCMakeCache(plugin, mockPlatform);
 
-        final File testBinary = childFileWithSubcomponents(pluginDirectory,
+        final File testBinary = childFileWithSubcomponents(plugin.directory,
             <String>['example', ...testBinaryRelativePath.split('/')]);
 
         processRunner.mockProcessesForExecutable[testBinary.path] =
@@ -872,6 +1058,7 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
+              _getLinuxBuildCall(plugin),
               ProcessCall(testBinary.path, const <String>[], null),
             ]));
       });
@@ -882,7 +1069,7 @@ void main() {
       test('fails if xcrun fails', () async {
         createFakePlugin('plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformMacos: const PlatformDetails(PlatformSupport.inline),
+              platformMacOS: const PlatformDetails(PlatformSupport.inline),
             });
 
         processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
@@ -907,22 +1094,16 @@ void main() {
       });
 
       test('honors unit-only', () async {
-        final Directory pluginDirectory1 = createFakePlugin(
-            'plugin', packagesDir,
+        final RepositoryPackage plugin = createFakePlugin('plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformMacos: const PlatformDetails(PlatformSupport.inline),
+              platformMacOS: const PlatformDetails(PlatformSupport.inline),
             });
 
-        final Directory pluginExampleDirectory =
-            pluginDirectory1.childDirectory('example');
+        final Directory pluginExampleDirectory = getExampleDir(plugin);
 
-        const Map<String, dynamic> projects = <String, dynamic>{
-          'project': <String, dynamic>{
-            'targets': <String>['RunnerTests', 'RunnerUITests']
-          }
-        };
         processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
-          MockProcess(stdout: jsonEncode(projects)), // xcodebuild -list
+          _getMockXcodebuildListProcess(
+              <String>['RunnerTests', 'RunnerUITests']),
         ];
 
         final List<String> output = await runCapturingPrint(runner, <String>[
@@ -940,54 +1121,24 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
-              ProcessCall(
-                  'xcrun',
-                  <String>[
-                    'xcodebuild',
-                    '-list',
-                    '-json',
-                    '-project',
-                    pluginExampleDirectory
-                        .childDirectory('macos')
-                        .childDirectory('Runner.xcodeproj')
-                        .path,
-                  ],
-                  null),
-              ProcessCall(
-                  'xcrun',
-                  const <String>[
-                    'xcodebuild',
-                    'test',
-                    '-workspace',
-                    'macos/Runner.xcworkspace',
-                    '-scheme',
-                    'Runner',
-                    '-configuration',
-                    'Debug',
-                    '-only-testing:RunnerTests',
-                    'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
-                  ],
-                  pluginExampleDirectory.path),
+              _getTargetCheckCall(pluginExampleDirectory, 'macos'),
+              _getRunTestCall(pluginExampleDirectory, 'macos',
+                  extraFlags: <String>['-only-testing:RunnerTests']),
             ]));
       });
 
       test('honors integration-only', () async {
-        final Directory pluginDirectory1 = createFakePlugin(
+        final RepositoryPackage plugin1 = createFakePlugin(
             'plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformMacos: const PlatformDetails(PlatformSupport.inline),
+              platformMacOS: const PlatformDetails(PlatformSupport.inline),
             });
 
-        final Directory pluginExampleDirectory =
-            pluginDirectory1.childDirectory('example');
+        final Directory pluginExampleDirectory = getExampleDir(plugin1);
 
-        const Map<String, dynamic> projects = <String, dynamic>{
-          'project': <String, dynamic>{
-            'targets': <String>['RunnerTests', 'RunnerUITests']
-          }
-        };
         processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
-          MockProcess(stdout: jsonEncode(projects)), // xcodebuild -list
+          _getMockXcodebuildListProcess(
+              <String>['RunnerTests', 'RunnerUITests']),
         ];
 
         final List<String> output = await runCapturingPrint(runner, <String>[
@@ -1005,55 +1156,24 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
-              ProcessCall(
-                  'xcrun',
-                  <String>[
-                    'xcodebuild',
-                    '-list',
-                    '-json',
-                    '-project',
-                    pluginExampleDirectory
-                        .childDirectory('macos')
-                        .childDirectory('Runner.xcodeproj')
-                        .path,
-                  ],
-                  null),
-              ProcessCall(
-                  'xcrun',
-                  const <String>[
-                    'xcodebuild',
-                    'test',
-                    '-workspace',
-                    'macos/Runner.xcworkspace',
-                    '-scheme',
-                    'Runner',
-                    '-configuration',
-                    'Debug',
-                    '-only-testing:RunnerUITests',
-                    'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
-                  ],
-                  pluginExampleDirectory.path),
+              _getTargetCheckCall(pluginExampleDirectory, 'macos'),
+              _getRunTestCall(pluginExampleDirectory, 'macos',
+                  extraFlags: <String>['-only-testing:RunnerUITests']),
             ]));
       });
 
       test('skips when the requested target is not present', () async {
-        final Directory pluginDirectory1 = createFakePlugin(
+        final RepositoryPackage plugin1 = createFakePlugin(
             'plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformMacos: const PlatformDetails(PlatformSupport.inline),
+              platformMacOS: const PlatformDetails(PlatformSupport.inline),
             });
 
-        final Directory pluginExampleDirectory =
-            pluginDirectory1.childDirectory('example');
+        final Directory pluginExampleDirectory = getExampleDir(plugin1);
 
         // Simulate a project with unit tests but no integration tests...
-        const Map<String, dynamic> projects = <String, dynamic>{
-          'project': <String, dynamic>{
-            'targets': <String>['RunnerTests']
-          }
-        };
         processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
-          MockProcess(stdout: jsonEncode(projects)), // xcodebuild -list
+          _getMockXcodebuildListProcess(<String>['RunnerTests']),
         ];
 
         // ... then try to run only integration tests.
@@ -1073,31 +1193,57 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
-              ProcessCall(
-                  'xcrun',
-                  <String>[
-                    'xcodebuild',
-                    '-list',
-                    '-json',
-                    '-project',
-                    pluginExampleDirectory
-                        .childDirectory('macos')
-                        .childDirectory('Runner.xcodeproj')
-                        .path,
-                  ],
-                  null),
+              _getTargetCheckCall(pluginExampleDirectory, 'macos'),
+            ]));
+      });
+
+      test('fails if there are no unit tests', () async {
+        final RepositoryPackage plugin1 = createFakePlugin(
+            'plugin', packagesDir,
+            platformSupport: <String, PlatformDetails>{
+              platformMacOS: const PlatformDetails(PlatformSupport.inline),
+            });
+
+        final Directory pluginExampleDirectory = getExampleDir(plugin1);
+
+        processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
+          _getMockXcodebuildListProcess(<String>['RunnerUITests']),
+        ];
+
+        Error? commandError;
+        final List<String> output =
+            await runCapturingPrint(runner, <String>['native-test', '--macos'],
+                errorHandler: (Error e) {
+          commandError = e;
+        });
+
+        expect(commandError, isA<ToolExit>());
+        expect(
+            output,
+            containsAllInOrder(<Matcher>[
+              contains('No "RunnerTests" target in plugin/example; skipping.'),
+              contains(
+                  'No unit tests ran. Plugins are required to have unit tests.'),
+              contains('The following packages had errors:'),
+              contains('plugin:\n'
+                  '    No unit tests ran (use --exclude if this is intentional).'),
+            ]));
+
+        expect(
+            processRunner.recordedCalls,
+            orderedEquals(<ProcessCall>[
+              _getTargetCheckCall(pluginExampleDirectory, 'macos'),
             ]));
       });
 
       test('fails if unable to check for requested target', () async {
-        final Directory pluginDirectory1 = createFakePlugin(
+        final RepositoryPackage plugin1 = createFakePlugin(
             'plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformMacos: const PlatformDetails(PlatformSupport.inline),
+              platformMacOS: const PlatformDetails(PlatformSupport.inline),
             });
 
-        final Directory pluginExampleDirectory =
-            pluginDirectory1.childDirectory('example');
+        final Directory pluginExampleDirectory = getExampleDir(plugin1);
 
         processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
           MockProcess(exitCode: 1), // xcodebuild -list
@@ -1123,26 +1269,14 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
-              ProcessCall(
-                  'xcrun',
-                  <String>[
-                    'xcodebuild',
-                    '-list',
-                    '-json',
-                    '-project',
-                    pluginExampleDirectory
-                        .childDirectory('macos')
-                        .childDirectory('Runner.xcodeproj')
-                        .path,
-                  ],
-                  null),
+              _getTargetCheckCall(pluginExampleDirectory, 'macos'),
             ]));
       });
     });
 
     group('multiplatform', () {
       test('runs all platfroms when supported', () async {
-        final Directory pluginDirectory = createFakePlugin(
+        final RepositoryPackage plugin = createFakePlugin(
           'plugin',
           packagesDir,
           extraFiles: <String>[
@@ -1150,16 +1284,24 @@ void main() {
             'android/src/test/example_test.java',
           ],
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline),
-            kPlatformIos: const PlatformDetails(PlatformSupport.inline),
-            kPlatformMacos: const PlatformDetails(PlatformSupport.inline),
+            platformAndroid: const PlatformDetails(PlatformSupport.inline),
+            platformIOS: const PlatformDetails(PlatformSupport.inline),
+            platformMacOS: const PlatformDetails(PlatformSupport.inline),
           },
         );
 
-        final Directory pluginExampleDirectory =
-            pluginDirectory.childDirectory('example');
+        final Directory pluginExampleDirectory = getExampleDir(plugin);
         final Directory androidFolder =
             pluginExampleDirectory.childDirectory('android');
+
+        processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
+          _getMockXcodebuildListProcess(
+              <String>['RunnerTests', 'RunnerUITests']), // iOS list
+          MockProcess(), // iOS run
+          _getMockXcodebuildListProcess(
+              <String>['RunnerTests', 'RunnerUITests']), // macOS list
+          MockProcess(), // macOS run
+        ];
 
         final List<String> output = await runCapturingPrint(runner, <String>[
           'native-test',
@@ -1183,48 +1325,26 @@ void main() {
             orderedEquals(<ProcessCall>[
               ProcessCall(androidFolder.childFile('gradlew').path,
                   const <String>['testDebugUnitTest'], androidFolder.path),
-              ProcessCall(
-                  'xcrun',
-                  const <String>[
-                    'xcodebuild',
-                    'test',
-                    '-workspace',
-                    'ios/Runner.xcworkspace',
-                    '-scheme',
-                    'Runner',
-                    '-configuration',
-                    'Debug',
-                    '-destination',
-                    'foo_destination',
-                    'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
-                  ],
-                  pluginExampleDirectory.path),
-              ProcessCall(
-                  'xcrun',
-                  const <String>[
-                    'xcodebuild',
-                    'test',
-                    '-workspace',
-                    'macos/Runner.xcworkspace',
-                    '-scheme',
-                    'Runner',
-                    '-configuration',
-                    'Debug',
-                    'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
-                  ],
-                  pluginExampleDirectory.path),
+              _getTargetCheckCall(pluginExampleDirectory, 'ios'),
+              _getRunTestCall(pluginExampleDirectory, 'ios',
+                  destination: 'foo_destination'),
+              _getTargetCheckCall(pluginExampleDirectory, 'macos'),
+              _getRunTestCall(pluginExampleDirectory, 'macos'),
             ]));
       });
 
       test('runs only macOS for a macOS plugin', () async {
-        final Directory pluginDirectory1 = createFakePlugin(
-            'plugin', packagesDir,
+        final RepositoryPackage plugin = createFakePlugin('plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformMacos: const PlatformDetails(PlatformSupport.inline),
+              platformMacOS: const PlatformDetails(PlatformSupport.inline),
             });
 
-        final Directory pluginExampleDirectory =
-            pluginDirectory1.childDirectory('example');
+        final Directory pluginExampleDirectory = getExampleDir(plugin);
+
+        processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
+          _getMockXcodebuildListProcess(
+              <String>['RunnerTests', 'RunnerUITests']),
+        ];
 
         final List<String> output = await runCapturingPrint(runner, <String>[
           'native-test',
@@ -1244,31 +1364,23 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
-              ProcessCall(
-                  'xcrun',
-                  const <String>[
-                    'xcodebuild',
-                    'test',
-                    '-workspace',
-                    'macos/Runner.xcworkspace',
-                    '-scheme',
-                    'Runner',
-                    '-configuration',
-                    'Debug',
-                    'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
-                  ],
-                  pluginExampleDirectory.path),
+              _getTargetCheckCall(pluginExampleDirectory, 'macos'),
+              _getRunTestCall(pluginExampleDirectory, 'macos'),
             ]));
       });
 
       test('runs only iOS for a iOS plugin', () async {
-        final Directory pluginDirectory = createFakePlugin(
-            'plugin', packagesDir, platformSupport: <String, PlatformDetails>{
-          kPlatformIos: const PlatformDetails(PlatformSupport.inline)
-        });
+        final RepositoryPackage plugin = createFakePlugin('plugin', packagesDir,
+            platformSupport: <String, PlatformDetails>{
+              platformIOS: const PlatformDetails(PlatformSupport.inline)
+            });
 
-        final Directory pluginExampleDirectory =
-            pluginDirectory.childDirectory('example');
+        final Directory pluginExampleDirectory = getExampleDir(plugin);
+
+        processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
+          _getMockXcodebuildListProcess(
+              <String>['RunnerTests', 'RunnerUITests']),
+        ];
 
         final List<String> output = await runCapturingPrint(runner, <String>[
           'native-test',
@@ -1288,22 +1400,9 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
-              ProcessCall(
-                  'xcrun',
-                  const <String>[
-                    'xcodebuild',
-                    'test',
-                    '-workspace',
-                    'ios/Runner.xcworkspace',
-                    '-scheme',
-                    'Runner',
-                    '-configuration',
-                    'Debug',
-                    '-destination',
-                    'foo_destination',
-                    'GCC_TREAT_WARNINGS_AS_ERRORS=YES',
-                  ],
-                  pluginExampleDirectory.path),
+              _getTargetCheckCall(pluginExampleDirectory, 'ios'),
+              _getRunTestCall(pluginExampleDirectory, 'ios',
+                  destination: 'foo_destination'),
             ]));
       });
 
@@ -1337,9 +1436,9 @@ void main() {
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformMacos: const PlatformDetails(PlatformSupport.inline,
+            platformMacOS: const PlatformDetails(PlatformSupport.inline,
                 hasDartCode: true, hasNativeCode: false),
-            kPlatformWindows: const PlatformDetails(PlatformSupport.inline,
+            platformWindows: const PlatformDetails(PlatformSupport.inline,
                 hasDartCode: true, hasNativeCode: false),
           },
         );
@@ -1364,12 +1463,12 @@ void main() {
       });
 
       test('failing one platform does not stop the tests', () async {
-        final Directory pluginDir = createFakePlugin(
+        final RepositoryPackage plugin = createFakePlugin(
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline),
-            kPlatformIos: const PlatformDetails(PlatformSupport.inline),
+            platformAndroid: const PlatformDetails(PlatformSupport.inline),
+            platformIOS: const PlatformDetails(PlatformSupport.inline),
           },
           extraFiles: <String>[
             'example/android/gradlew',
@@ -1377,10 +1476,16 @@ void main() {
           ],
         );
 
+        processRunner.mockProcessesForExecutable['xcrun'] = <io.Process>[
+          _getMockXcodebuildListProcess(
+              <String>['RunnerTests', 'RunnerUITests']),
+        ];
+
         // Simulate failing Android, but not iOS.
-        final String gradlewPath = pluginDir
-            .childDirectory('example')
-            .childDirectory('android')
+        final String gradlewPath = plugin
+            .getExamples()
+            .first
+            .platformDirectory(FlutterPlatform.android)
             .childFile('gradlew')
             .path;
         processRunner.mockProcessesForExecutable[gradlewPath] = <io.Process>[
@@ -1415,12 +1520,12 @@ void main() {
       });
 
       test('failing multiple platforms reports multiple failures', () async {
-        final Directory pluginDir = createFakePlugin(
+        final RepositoryPackage plugin = createFakePlugin(
           'plugin',
           packagesDir,
           platformSupport: <String, PlatformDetails>{
-            kPlatformAndroid: const PlatformDetails(PlatformSupport.inline),
-            kPlatformIos: const PlatformDetails(PlatformSupport.inline),
+            platformAndroid: const PlatformDetails(PlatformSupport.inline),
+            platformIOS: const PlatformDetails(PlatformSupport.inline),
           },
           extraFiles: <String>[
             'example/android/gradlew',
@@ -1429,9 +1534,10 @@ void main() {
         );
 
         // Simulate failing Android.
-        final String gradlewPath = pluginDir
-            .childDirectory('example')
-            .childDirectory('android')
+        final String gradlewPath = plugin
+            .getExamples()
+            .first
+            .platformDirectory(FlutterPlatform.android)
             .childFile('gradlew')
             .path;
         processRunner.mockProcessesForExecutable[gradlewPath] = <io.Process>[
@@ -1490,18 +1596,38 @@ void main() {
       runner.addCommand(command);
     });
 
+    // Returns the ProcessCall to expect for build the Windows unit tests for
+    // the given plugin.
+    ProcessCall _getWindowsBuildCall(RepositoryPackage plugin) {
+      return ProcessCall(
+          _fakeCmakeCommand,
+          <String>[
+            '--build',
+            getExampleDir(plugin)
+                .childDirectory('build')
+                .childDirectory('windows')
+                .path,
+            '--target',
+            'unit_tests',
+            '--config',
+            'Debug'
+          ],
+          null);
+    }
+
     group('Windows', () {
       test('runs unit tests', () async {
         const String testBinaryRelativePath =
-            'build/windows/foo/Release/bar/plugin_test.exe';
-        final Directory pluginDirectory =
+            'build/windows/Debug/bar/plugin_test.exe';
+        final RepositoryPackage plugin =
             createFakePlugin('plugin', packagesDir, extraFiles: <String>[
           'example/$testBinaryRelativePath'
         ], platformSupport: <String, PlatformDetails>{
-          kPlatformWindows: const PlatformDetails(PlatformSupport.inline),
+          platformWindows: const PlatformDetails(PlatformSupport.inline),
         });
+        _createFakeCMakeCache(plugin, mockPlatform);
 
-        final File testBinary = childFileWithSubcomponents(pluginDirectory,
+        final File testBinary = childFileWithSubcomponents(plugin.directory,
             <String>['example', ...testBinaryRelativePath.split('/')]);
 
         final List<String> output = await runCapturingPrint(runner, <String>[
@@ -1521,26 +1647,28 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
+              _getWindowsBuildCall(plugin),
               ProcessCall(testBinary.path, const <String>[], null),
             ]));
       });
 
-      test('only runs release unit tests', () async {
+      test('only runs debug unit tests', () async {
         const String debugTestBinaryRelativePath =
-            'build/windows/foo/Debug/bar/plugin_test.exe';
+            'build/windows/Debug/bar/plugin_test.exe';
         const String releaseTestBinaryRelativePath =
-            'build/windows/foo/Release/bar/plugin_test.exe';
-        final Directory pluginDirectory =
+            'build/windows/Release/bar/plugin_test.exe';
+        final RepositoryPackage plugin =
             createFakePlugin('plugin', packagesDir, extraFiles: <String>[
           'example/$debugTestBinaryRelativePath',
           'example/$releaseTestBinaryRelativePath'
         ], platformSupport: <String, PlatformDetails>{
-          kPlatformWindows: const PlatformDetails(PlatformSupport.inline),
+          platformWindows: const PlatformDetails(PlatformSupport.inline),
         });
+        _createFakeCMakeCache(plugin, mockPlatform);
 
-        final File releaseTestBinary = childFileWithSubcomponents(
-            pluginDirectory,
-            <String>['example', ...releaseTestBinaryRelativePath.split('/')]);
+        final File debugTestBinary = childFileWithSubcomponents(
+            plugin.directory,
+            <String>['example', ...debugTestBinaryRelativePath.split('/')]);
 
         final List<String> output = await runCapturingPrint(runner, <String>[
           'native-test',
@@ -1556,19 +1684,47 @@ void main() {
           ]),
         );
 
-        // Only the release version should be run.
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
-              ProcessCall(releaseTestBinary.path, const <String>[], null),
+              _getWindowsBuildCall(plugin),
+              ProcessCall(debugTestBinary.path, const <String>[], null),
             ]));
       });
 
-      test('fails if there are no unit tests', () async {
+      test('fails if CMake has not been configured', () async {
         createFakePlugin('plugin', packagesDir,
             platformSupport: <String, PlatformDetails>{
-              kPlatformWindows: const PlatformDetails(PlatformSupport.inline),
+              platformWindows: const PlatformDetails(PlatformSupport.inline),
             });
+
+        Error? commandError;
+        final List<String> output = await runCapturingPrint(runner, <String>[
+          'native-test',
+          '--windows',
+          '--no-integration',
+        ], errorHandler: (Error e) {
+          commandError = e;
+        });
+
+        expect(commandError, isA<ToolExit>());
+        expect(
+          output,
+          containsAllInOrder(<Matcher>[
+            contains('plugin:\n'
+                '    Examples must be built before testing.')
+          ]),
+        );
+
+        expect(processRunner.recordedCalls, orderedEquals(<ProcessCall>[]));
+      });
+
+      test('fails if there are no unit tests', () async {
+        final RepositoryPackage plugin = createFakePlugin('plugin', packagesDir,
+            platformSupport: <String, PlatformDetails>{
+              platformWindows: const PlatformDetails(PlatformSupport.inline),
+            });
+        _createFakeCMakeCache(plugin, mockPlatform);
 
         Error? commandError;
         final List<String> output = await runCapturingPrint(runner, <String>[
@@ -1587,20 +1743,25 @@ void main() {
           ]),
         );
 
-        expect(processRunner.recordedCalls, orderedEquals(<ProcessCall>[]));
+        expect(
+            processRunner.recordedCalls,
+            orderedEquals(<ProcessCall>[
+              _getWindowsBuildCall(plugin),
+            ]));
       });
 
       test('fails if a unit test fails', () async {
         const String testBinaryRelativePath =
-            'build/windows/foo/Release/bar/plugin_test.exe';
-        final Directory pluginDirectory =
+            'build/windows/Debug/bar/plugin_test.exe';
+        final RepositoryPackage plugin =
             createFakePlugin('plugin', packagesDir, extraFiles: <String>[
           'example/$testBinaryRelativePath'
         ], platformSupport: <String, PlatformDetails>{
-          kPlatformWindows: const PlatformDetails(PlatformSupport.inline),
+          platformWindows: const PlatformDetails(PlatformSupport.inline),
         });
+        _createFakeCMakeCache(plugin, mockPlatform);
 
-        final File testBinary = childFileWithSubcomponents(pluginDirectory,
+        final File testBinary = childFileWithSubcomponents(plugin.directory,
             <String>['example', ...testBinaryRelativePath.split('/')]);
 
         processRunner.mockProcessesForExecutable[testBinary.path] =
@@ -1626,6 +1787,7 @@ void main() {
         expect(
             processRunner.recordedCalls,
             orderedEquals(<ProcessCall>[
+              _getWindowsBuildCall(plugin),
               ProcessCall(testBinary.path, const <String>[], null),
             ]));
       });

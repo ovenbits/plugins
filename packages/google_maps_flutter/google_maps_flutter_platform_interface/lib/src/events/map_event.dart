@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
-import 'package:google_maps_flutter_platform_interface/src/method_channel/method_channel_google_maps_flutter.dart';
 
 /// Generic Event coming from the native side of Maps.
 ///
@@ -35,29 +34,29 @@ import 'package:google_maps_flutter_platform_interface/src/method_channel/method
 /// events to access the `.position` property, rather than the more generic `.value`
 /// yielded from the latter.
 class MapEvent<T> {
-  /// The ID of the Map this event is associated to.
-  final int mapId;
-
-  /// The value wrapped by this event
-  final T value;
-
   /// Build a Map Event, that relates a mapId with a given value.
   ///
   /// The `mapId` is the id of the map that triggered the event.
   /// `value` may be `null` in events that don't transport any meaningful data.
   MapEvent(this.mapId, this.value);
+
+  /// The ID of the Map this event is associated to.
+  final int mapId;
+
+  /// The value wrapped by this event
+  final T value;
 }
 
 /// A `MapEvent` associated to a `position`.
 class _PositionedMapEvent<T> extends MapEvent<T> {
-  /// The position where this event happened.
-  final LatLng position;
-
   /// Build a Positioned MapEvent, that relates a mapId and a position with a value.
   ///
   /// The `mapId` is the id of the map that triggered the event.
   /// `value` may be `null` in events that don't transport any meaningful data.
   _PositionedMapEvent(int mapId, this.position, T value) : super(mapId, value);
+
+  /// The position where this event happened.
+  final LatLng position;
 }
 
 // The following events are the ones exposed to the end user. They are semantic extensions
@@ -100,6 +99,26 @@ class InfoWindowTapEvent extends MapEvent<MarkerId> {
   ///
   /// The `value` of this event is a [MarkerId] object that represents the tapped InfoWindow.
   InfoWindowTapEvent(int mapId, MarkerId markerId) : super(mapId, markerId);
+}
+
+/// An event fired when a [Marker] is starting to be dragged to a new [LatLng].
+class MarkerDragStartEvent extends _PositionedMapEvent<MarkerId> {
+  /// Build a MarkerDragStart Event triggered from the map represented by `mapId`.
+  ///
+  /// The `position` on this event is the [LatLng] on which the Marker was picked up from.
+  /// The `value` of this event is a [MarkerId] object that represents the Marker.
+  MarkerDragStartEvent(int mapId, LatLng position, MarkerId markerId)
+      : super(mapId, position, markerId);
+}
+
+/// An event fired when a [Marker] is being dragged to a new [LatLng].
+class MarkerDragEvent extends _PositionedMapEvent<MarkerId> {
+  /// Build a MarkerDrag Event triggered from the map represented by `mapId`.
+  ///
+  /// The `position` on this event is the [LatLng] on which the Marker was dragged to.
+  /// The `value` of this event is a [MarkerId] object that represents the Marker.
+  MarkerDragEvent(int mapId, LatLng position, MarkerId markerId)
+      : super(mapId, position, markerId);
 }
 
 /// An event fired when a [Marker] is dragged to a new [LatLng].

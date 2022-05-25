@@ -6,20 +6,21 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
-import 'package:mockito/mockito.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-
-import 'package:google_maps_flutter_platform_interface/src/method_channel/method_channel_google_maps_flutter.dart';
 import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
+import 'package:mockito/mockito.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  // Store the initial instance before any tests change it.
+  final GoogleMapsFlutterPlatform initialInstance =
+      GoogleMapsFlutterPlatform.instance;
+
   group('$GoogleMapsFlutterPlatform', () {
     test('$MethodChannelGoogleMapsFlutter() is the default instance', () {
-      expect(GoogleMapsFlutterPlatform.instance,
-          isInstanceOf<MethodChannelGoogleMapsFlutter>());
+      expect(initialInstance, isInstanceOf<MethodChannelGoogleMapsFlutter>());
     });
 
     test('Cannot be implemented with `implements`', () {
@@ -48,7 +49,8 @@ void main() {
           platform.buildViewWithTextDirection(
             0,
             (_) {},
-            initialCameraPosition: CameraPosition(target: LatLng(0.0, 0.0)),
+            initialCameraPosition:
+                const CameraPosition(target: LatLng(0.0, 0.0)),
             textDirection: TextDirection.ltr,
           ),
           isA<Text>(),

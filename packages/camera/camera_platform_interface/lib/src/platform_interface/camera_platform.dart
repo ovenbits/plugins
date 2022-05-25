@@ -6,12 +6,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:camera_platform_interface/camera_platform_interface.dart';
-import 'package:camera_platform_interface/src/events/device_event.dart';
 import 'package:camera_platform_interface/src/method_channel/method_channel_camera.dart';
-import 'package:camera_platform_interface/src/types/exposure_mode.dart';
-import 'package:camera_platform_interface/src/types/focus_mode.dart';
-import 'package:camera_platform_interface/src/types/image_format_group.dart';
-import 'package:cross_file/cross_file.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -39,7 +34,7 @@ abstract class CameraPlatform extends PlatformInterface {
   /// Platform-specific plugins should set this with their own platform-specific
   /// class that extends [CameraPlatform] when they register themselves.
   static set instance(CameraPlatform instance) {
-    PlatformInterface.verifyToken(instance, _token);
+    PlatformInterface.verify(instance, _token);
     _instance = instance;
   }
 
@@ -64,6 +59,7 @@ abstract class CameraPlatform extends PlatformInterface {
   /// [imageFormatGroup] is used to specify the image formatting used.
   /// On Android this defaults to ImageFormat.YUV_420_888 and applies only to the imageStream.
   /// On iOS this defaults to kCVPixelFormatType_32BGRA.
+  /// On Web this parameter is currently not supported.
   Future<void> initializeCamera(
     int cameraId, {
     ImageFormatGroup imageFormatGroup = ImageFormatGroup.unknown,
@@ -71,12 +67,13 @@ abstract class CameraPlatform extends PlatformInterface {
     throw UnimplementedError('initializeCamera() is not implemented.');
   }
 
-  /// The camera has been initialized
+  /// The camera has been initialized.
   Stream<CameraInitializedEvent> onCameraInitialized(int cameraId) {
     throw UnimplementedError('onCameraInitialized() is not implemented.');
   }
 
-  /// The camera's resolution has changed
+  /// The camera's resolution has changed.
+  /// On Web this returns an empty stream.
   Stream<CameraResolutionChangedEvent> onCameraResolutionChanged(int cameraId) {
     throw UnimplementedError('onResolutionChanged() is not implemented.');
   }
@@ -91,7 +88,7 @@ abstract class CameraPlatform extends PlatformInterface {
     throw UnimplementedError('onCameraError() is not implemented.');
   }
 
-  /// The camera finished recording a video
+  /// The camera finished recording a video.
   Stream<VideoRecordedEvent> onVideoRecordedEvent(int cameraId) {
     throw UnimplementedError('onCameraTimeLimitReached() is not implemented.');
   }
@@ -153,6 +150,7 @@ abstract class CameraPlatform extends PlatformInterface {
   }
 
   /// Sets the flash mode for the selected camera.
+  /// On Web [FlashMode.auto] corresponds to [FlashMode.always].
   Future<void> setFlashMode(int cameraId, FlashMode mode) {
     throw UnimplementedError('setFlashMode() is not implemented.');
   }
@@ -227,8 +225,8 @@ abstract class CameraPlatform extends PlatformInterface {
 
   /// Set the zoom level for the selected camera.
   ///
-  /// The supplied [zoom] value should be between 1.0 and the maximum supported
-  /// zoom level returned by the `getMaxZoomLevel`. Throws a `CameraException`
+  /// The supplied [zoom] value should be between the minimum and the maximum supported
+  /// zoom level returned by `getMinZoomLevel` and `getMaxZoomLevel`. Throws a `CameraException`
   /// when an illegal zoom level is supplied.
   Future<void> setZoomLevel(int cameraId, double zoom) {
     throw UnimplementedError('setZoomLevel() is not implemented.');

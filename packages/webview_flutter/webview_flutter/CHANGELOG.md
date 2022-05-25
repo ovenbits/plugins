@@ -1,5 +1,86 @@
-## NEXT
+## 3.0.4
 
+* Minor fixes for new analysis options.
+
+## 3.0.3
+
+* Removes unnecessary imports.
+* Fixes library_private_types_in_public_api, sort_child_properties_last and use_key_in_widget_constructors
+  lint warnings.
+
+## 3.0.2
+
+* Migrates deprecated `Scaffold.showSnackBar` to `ScaffoldMessenger` in example app.
+* Adds OS version support information to README.
+
+## 3.0.1
+
+* Removes a duplicate Android-specific integration test.
+* Fixes an integration test race condition.
+* Fixes comments (accidentally mixed // with ///).
+
+## 3.0.0
+
+* **BREAKING CHANGE**: On Android, hybrid composition (SurfaceAndroidWebView)
+  is now the default. The previous default, virtual display, can be specified
+  with `WebView.platform = AndroidWebView()`
+
+## 2.8.0
+
+* Adds support for the `loadFlutterAsset` method.
+
+## 2.7.0
+
+* Adds `setCookie` to CookieManager.
+* CreationParams now supports setting `initialCookies`.
+
+## 2.6.0
+
+* Adds support for the `loadRequest` method.
+
+## 2.5.0
+
+* Adds an option to set the background color of the webview.
+
+## 2.4.0
+
+* Adds support for the `loadFile` and `loadHtmlString` methods.
+* Updates example app Android compileSdkVersion to 31.
+* Integration test fixes.
+* Updates code for new analysis options.
+
+## 2.3.1
+
+* Add iOS-specific note to set `JavascriptMode.unrestricted` in order to set `zoomEnabled: false`.
+
+## 2.3.0
+
+* Add ability to enable/disable zoom functionality.
+
+## 2.2.0
+
+* Added `runJavascript` and `runJavascriptForResult` to supersede `evaluateJavascript`.
+* Deprecated `evaluateJavascript`.
+
+## 2.1.2
+
+* Fix typos in the README.
+
+## 2.1.1
+
+* Fixed `_CastError` that was thrown when running the example App.
+
+## 2.1.0
+
+* Migrated to fully federated architecture.
+
+## 2.0.14
+
+* Update minimum Flutter SDK to 2.5 and iOS deployment target to 9.0.
+
+## 2.0.13
+
+* Send URL of File to download to the NavigationDelegate on Android just like it is already done on iOS.
 * Updated Android lint settings.
 
 ## 2.0.12

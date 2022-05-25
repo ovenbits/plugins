@@ -6,9 +6,11 @@ import 'package:file_selector_platform_interface/file_selector_platform_interfac
 
 /// Convert list of XTypeGroups to a comma-separated string
 String acceptedTypesToString(List<XTypeGroup>? acceptedTypes) {
-  if (acceptedTypes == null) return '';
-  final List<String> allTypes = [];
-  for (final group in acceptedTypes) {
+  if (acceptedTypes == null) {
+    return '';
+  }
+  final List<String> allTypes = <String>[];
+  for (final XTypeGroup group in acceptedTypes) {
     _assertTypeGroupIsValid(group);
     if (group.extensions != null) {
       allTypes.addAll(group.extensions!.map(_normalizeExtension));
@@ -34,5 +36,5 @@ void _assertTypeGroupIsValid(XTypeGroup group) {
 
 /// Append a dot at the beggining if it is not there png -> .png
 String _normalizeExtension(String ext) {
-  return ext.isNotEmpty && ext[0] != '.' ? '.' + ext : ext;
+  return ext.isNotEmpty && ext[0] != '.' ? '.$ext' : ext;
 }

@@ -1,3 +1,36 @@
+## NEXT
+
+* Adds `const` constructor parameters in example tests.
+
+## 0.3.3
+
+* Removes custom `analysis_options.yaml` (and fixes code to comply with newest rules).
+* Updates `package:google_maps` dependency to latest (`^6.1.0`).
+* Ensures that `convert.dart` sanitizes user-created HTML before passing it to the
+  Maps JS SDK with `sanitizeHtml` from `package:sanitize_html`.
+  [More info](https://pub.dev/documentation/sanitize_html/latest/sanitize_html/sanitizeHtml.html).
+
+## 0.3.2+2
+
+* Removes unnecessary imports.
+* Fixes library_private_types_in_public_api, sort_child_properties_last and use_key_in_widget_constructors
+  lint warnings.
+
+## 0.3.2+1
+
+* Removes dependency on `meta`.
+
+## 0.3.2
+
+* Add `onDragStart` and `onDrag` to `Marker`
+
+## 0.3.1
+
+* Fix the `getScreenCoordinate(LatLng)` method. [#80710](https://github.com/flutter/flutter/issues/80710)
+* Wait until the map tiles have loaded before calling `onPlatformViewCreated`, so
+the returned controller is 100% functional (has bounds, a projection, etc...)
+* Use zIndex property when initializing Circle objects. [#89374](https://github.com/flutter/flutter/issues/89374)
+
 ## 0.3.0+4
 
 * Add `implements` to pubspec.

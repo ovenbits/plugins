@@ -2,9 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// ignore_for_file: public_member_api_docs
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_flutter_example/lite_mode.dart';
 import 'animate_camera.dart';
 import 'map_click.dart';
@@ -23,24 +24,28 @@ import 'snapshot.dart';
 import 'tile_overlay.dart';
 
 final List<GoogleMapExampleAppPage> _allPages = <GoogleMapExampleAppPage>[
-  MapUiPage(),
-  MapCoordinatesPage(),
-  MapClickPage(),
-  AnimateCameraPage(),
-  MoveCameraPage(),
-  PlaceMarkerPage(),
-  MarkerIconsPage(),
-  ScrollingMapPage(),
-  PlacePolylinePage(),
-  PlacePolygonPage(),
-  PlaceCirclePage(),
-  PaddingPage(),
-  SnapshotPage(),
-  LiteModePage(),
-  TileOverlayPage(),
+  const MapUiPage(),
+  const MapCoordinatesPage(),
+  const MapClickPage(),
+  const AnimateCameraPage(),
+  const MoveCameraPage(),
+  const PlaceMarkerPage(),
+  const MarkerIconsPage(),
+  const ScrollingMapPage(),
+  const PlacePolylinePage(),
+  const PlacePolygonPage(),
+  const PlaceCirclePage(),
+  const PaddingPage(),
+  const SnapshotPage(),
+  const LiteModePage(),
+  const TileOverlayPage(),
 ];
 
+/// MapsDemo is the Main Application.
 class MapsDemo extends StatelessWidget {
+  /// Default Constructor
+  const MapsDemo({Key? key}) : super(key: key);
+
   void _pushPage(BuildContext context, GoogleMapExampleAppPage page) {
     Navigator.of(context).push(MaterialPageRoute<void>(
         builder: (_) => Scaffold(
@@ -66,5 +71,8 @@ class MapsDemo extends StatelessWidget {
 }
 
 void main() {
-  runApp(MaterialApp(home: MapsDemo()));
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    AndroidGoogleMapsFlutter.useAndroidViewSurface = true;
+  }
+  runApp(const MaterialApp(home: MapsDemo()));
 }

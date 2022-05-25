@@ -1,3 +1,34 @@
+## 2.1.6
+
+* Fixes library_private_types_in_public_api, sort_child_properties_last and use_key_in_widget_constructors
+  lint warnings.
+
+## 2.1.5
+
+* Removes dependency on `meta`.
+
+## 2.1.4
+
+* Fixes `getApplicationSupportPath` handling of applications where the
+  application ID is not set.
+
+## 2.1.3
+
+* Change getApplicationSupportPath from using executable name to application ID (if provided).
+  * If the executable name based directory exists, continue to use that so existing applications continue with the same behaviour.
+
+## 2.1.2
+
+* Fixes link in README.
+
+## 2.1.1
+
+* Removed obsolete `pluginClass: none` from pubpsec.
+
+## 2.1.0
+
+* Now `getTemporaryPath` returns the value of the `TMPDIR` environment variable primarily. If `TMPDIR` is not set, `/tmp` is returned.
+
 ## 2.0.2
 
 * Updated installation instructions in README.
@@ -38,5 +69,5 @@
 * This updates the readme and pubspec and example to reflect the endorsement of this implementation of `path_provider`
 
 ## 0.0.1
-* The initial implementation of path_provider for Linux
+* The initial implementation of path\_provider for Linux
   * Implements getApplicationSupportPath, getApplicationDocumentsPath, getDownloadsPath, and getTemporaryPath

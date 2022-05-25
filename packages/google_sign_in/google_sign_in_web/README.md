@@ -1,6 +1,6 @@
 # google\_sign\_in\_web
 
-The web implementation of [google_sign_in](https://pub.dev/google_sign_in/google_sign_in)
+The web implementation of [google_sign_in](https://pub.dev/packages/google_sign_in)
 
 ## Usage
 
@@ -37,7 +37,7 @@ Normally `flutter run` starts in a random port. In the case where you need to de
 
 You can tell `flutter run` to listen for requests in a specific host and port with the following:
 
-```
+```sh
 flutter run -d chrome --web-hostname localhost --web-port 7357
 ```
 

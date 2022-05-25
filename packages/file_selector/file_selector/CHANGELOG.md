@@ -1,6 +1,35 @@
+## NEXT
+
+* Minor fixes for new analysis options.
+
+## 0.8.4+2
+
+* Removes unnecessary imports.
+* Adds OS version support information to README.
+* Fixes library_private_types_in_public_api, sort_child_properties_last and use_key_in_widget_constructors
+  lint warnings.
+
+## 0.8.4+1
+
+* Adds README information about macOS entitlements.
+* Adds necessary entitlement to macOS example.
+
+## 0.8.4
+
+* Adds an endorsed macOS implementation.
+
+## 0.8.3
+
+* Adds an endorsed Windows implementation.
+
+## 0.8.2+1
+
+* Minor code cleanup for new analysis rules.
+* Updated package description.
+
 ## 0.8.2
 
-* Update platform_plugin_interface version requirement.
+* Update `platform_plugin_interface` version requirement.
 
 ## 0.8.1
 

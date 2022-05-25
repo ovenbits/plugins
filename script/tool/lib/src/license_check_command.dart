@@ -3,7 +3,9 @@
 // found in the LICENSE file.
 
 import 'package:file/file.dart';
+import 'package:git/git.dart';
 import 'package:path/path.dart' as p;
+import 'package:platform/platform.dart';
 
 import 'common/core.dart';
 import 'common/plugin_command.dart';
@@ -16,6 +18,7 @@ const Set<String> _codeFileExtensions = <String>{
   '.h',
   '.html',
   '.java',
+  '.kt',
   '.m',
   '.mm',
   '.swift',
@@ -49,16 +52,24 @@ const Set<String> _ignoredFullBasenameList = <String>{
 // When adding license regexes here, include the copyright info to ensure that
 // any new additions are flagged for added scrutiny in review.
 final List<RegExp> _thirdPartyLicenseBlockRegexes = <RegExp>[
-// Third-party code used in url_launcher_web.
+  // Third-party code used in url_launcher_web.
   RegExp(
-      r'^// Copyright 2017 Workiva Inc\..*'
-      r'^// Licensed under the Apache License, Version 2\.0',
-      multiLine: true,
-      dotAll: true),
+    r'^// Copyright 2017 Workiva Inc\..*'
+    r'^// Licensed under the Apache License, Version 2\.0',
+    multiLine: true,
+    dotAll: true,
+  ),
+  // Third-party code used in google_maps_flutter_web.
+  RegExp(
+    r'^// The MIT License [^C]+ Copyright \(c\) 2008 Krasimir Tsonev',
+    multiLine: true,
+  ),
   // bsdiff in flutter/packages.
-  RegExp(r'// Copyright 2003-2005 Colin Percival\. All rights reserved\.\n'
-      r'// Use of this source code is governed by a BSD-style license that can be\n'
-      r'// found in the LICENSE file\.\n'),
+  RegExp(
+    r'// Copyright 2003-2005 Colin Percival\. All rights reserved\.\n'
+    r'// Use of this source code is governed by a BSD-style license that can be\n'
+    r'// found in the LICENSE file\.\n',
+  ),
 ];
 
 // The exact format of the BSD license that our license files should contain.
@@ -96,7 +107,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /// Validates that code files have copyright and license blocks.
 class LicenseCheckCommand extends PluginCommand {
   /// Creates a new license check command for [packagesDir].
-  LicenseCheckCommand(Directory packagesDir) : super(packagesDir);
+  LicenseCheckCommand(Directory packagesDir,
+      {Platform platform = const LocalPlatform(), GitDir? gitDir})
+      : super(packagesDir, platform: platform, gitDir: gitDir);
 
   @override
   final String name = 'license-check';
@@ -107,7 +120,14 @@ class LicenseCheckCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
-    final Iterable<File> allFiles = await _getAllFiles();
+    // Create a set of absolute paths to submodule directories, with trailing
+    // separator, to do prefix matching with to test directory inclusion.
+    final Iterable<String> submodulePaths = (await _getSubmoduleDirectories())
+        .map(
+            (Directory dir) => '${dir.absolute.path}${platform.pathSeparator}');
+
+    final Iterable<File> allFiles = (await _getAllFiles()).where(
+        (File file) => !submodulePaths.any(file.absolute.path.startsWith));
 
     final Iterable<File> codeFiles = allFiles.where((File file) =>
         _codeFileExtensions.contains(p.extension(file.path)) &&
@@ -197,7 +217,10 @@ class LicenseCheckCommand extends PluginCommand {
 
     for (final File file in codeFiles) {
       print('Checking ${file.path}');
-      final String content = await file.readAsString();
+      // On Windows, git may auto-convert line endings on checkout; this should
+      // still pass since they will be converted back on commit.
+      final String content =
+          (await file.readAsString()).replaceAll('\r\n', '\n');
 
       final String firstParyLicense =
           firstPartyLicenseBlockByExtension[p.extension(file.path)] ??
@@ -218,8 +241,7 @@ class LicenseCheckCommand extends PluginCommand {
     }
 
     // Sort by path for more usable output.
-    final int Function(File, File) pathCompare =
-        (File a, File b) => a.path.compareTo(b.path);
+    int pathCompare(File a, File b) => a.path.compareTo(b.path);
     incorrectFirstPartyFiles.sort(pathCompare);
     unrecognizedThirdPartyFiles.sort(pathCompare);
 
@@ -235,7 +257,10 @@ class LicenseCheckCommand extends PluginCommand {
 
     for (final File file in files) {
       print('Checking ${file.path}');
-      if (!file.readAsStringSync().contains(_fullBsdLicenseText)) {
+      // On Windows, git may auto-convert line endings on checkout; this should
+      // still pass since they will be converted back on commit.
+      final String contents = file.readAsStringSync().replaceAll('\r\n', '\n');
+      if (!contents.contains(_fullBsdLicenseText)) {
         incorrectLicenseFiles.add(file);
       }
     }
@@ -260,6 +285,24 @@ class LicenseCheckCommand extends PluginCommand {
       .where((FileSystemEntity entity) => entity is File)
       .map((FileSystemEntity file) => file as File)
       .toList();
+
+  // Returns the directories containing mapped submodules, if any.
+  Future<Iterable<Directory>> _getSubmoduleDirectories() async {
+    final List<Directory> submodulePaths = <Directory>[];
+    final Directory repoRoot =
+        packagesDir.fileSystem.directory((await gitDir).path);
+    final File submoduleSpec = repoRoot.childFile('.gitmodules');
+    if (submoduleSpec.existsSync()) {
+      final RegExp pathLine = RegExp(r'path\s*=\s*(.*)');
+      for (final String line in submoduleSpec.readAsLinesSync()) {
+        final RegExpMatch? match = pathLine.firstMatch(line);
+        if (match != null) {
+          submodulePaths.add(repoRoot.childDirectory(match.group(1)!.trim()));
+        }
+      }
+    }
+    return submodulePaths;
+  }
 }
 
 enum _LicenseFailureType { incorrectFirstParty, unknownThirdParty }

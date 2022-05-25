@@ -36,6 +36,7 @@ public class DeviceOrientationManagerTest {
   private DeviceOrientationManager deviceOrientationManager;
 
   @Before
+  @SuppressWarnings("deprecation")
   public void before() {
     mockActivity = mock(Activity.class);
     mockDartMessenger = mock(DartMessenger.class);
@@ -61,9 +62,9 @@ public class DeviceOrientationManagerTest {
         deviceOrientationManager.getVideoOrientation(DeviceOrientation.LANDSCAPE_RIGHT);
 
     assertEquals(0, degreesPortraitUp);
-    assertEquals(90, degreesLandscapeLeft);
+    assertEquals(270, degreesLandscapeLeft);
     assertEquals(180, degreesPortraitDown);
-    assertEquals(270, degreesLandscapeRight);
+    assertEquals(90, degreesLandscapeRight);
   }
 
   @Test
@@ -80,18 +81,30 @@ public class DeviceOrientationManagerTest {
         orientationManager.getVideoOrientation(DeviceOrientation.LANDSCAPE_RIGHT);
 
     assertEquals(90, degreesPortraitUp);
-    assertEquals(180, degreesLandscapeLeft);
+    assertEquals(0, degreesLandscapeLeft);
     assertEquals(270, degreesPortraitDown);
-    assertEquals(0, degreesLandscapeRight);
+    assertEquals(180, degreesLandscapeRight);
   }
 
   @Test
-  public void getVideoOrientation_shouldFallbackToSensorOrientationWhenOrientationIsNull() {
-    setUpUIOrientationMocks(Configuration.ORIENTATION_LANDSCAPE, Surface.ROTATION_0);
+  public void getVideoOrientation_fallbackToPortraitSensorOrientationWhenOrientationIsNull() {
+    setUpUIOrientationMocks(Configuration.ORIENTATION_PORTRAIT, Surface.ROTATION_0);
 
     int degrees = deviceOrientationManager.getVideoOrientation(null);
 
-    assertEquals(90, degrees);
+    assertEquals(0, degrees);
+  }
+
+  @Test
+  public void getVideoOrientation_fallbackToLandscapeSensorOrientationWhenOrientationIsNull() {
+    setUpUIOrientationMocks(Configuration.ORIENTATION_LANDSCAPE, Surface.ROTATION_0);
+
+    DeviceOrientationManager orientationManager =
+        DeviceOrientationManager.create(mockActivity, mockDartMessenger, false, 90);
+
+    int degrees = orientationManager.getVideoOrientation(null);
+
+    assertEquals(0, degrees);
   }
 
   @Test

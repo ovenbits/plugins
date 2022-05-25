@@ -26,8 +26,10 @@ String _getViewType(int cameraId) => 'plugins.flutter.io/camera_$cameraId';
 /// the video element in [_applyDefaultVideoStyles].
 /// See: https://github.com/flutter/flutter/issues/79519
 ///
-/// The camera can be played/stopped by calling [play]/[stop]
-/// or may capture a picture by calling [takePicture].
+/// The camera stream can be played/stopped by calling [play]/[stop],
+/// may capture a picture by calling [takePicture] or capture a video
+/// by calling [startVideoRecording], [pauseVideoRecording],
+/// [resumeVideoRecording] or [stopVideoRecording].
 ///
 /// The camera zoom may be adjusted with [setZoomLevel]. The provided
 /// zoom level must be a value in the range of [getMinZoomLevel] to
@@ -47,7 +49,7 @@ class Camera {
 
   // A torch mode constraint name.
   // See: https://w3c.github.io/mediacapture-image/#dom-mediatracksupportedconstraints-torch
-  static const _torchModeKey = "torch";
+  static const String _torchModeKey = 'torch';
 
   /// The texture id used to register the camera view.
   final int textureId;
@@ -76,14 +78,31 @@ class Camera {
   ///
   /// MediaStreamTrack.onended:
   /// https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack/onended
-  Stream<html.MediaStreamTrack> get onEnded => onEndedStreamController.stream;
+  Stream<html.MediaStreamTrack> get onEnded => onEndedController.stream;
 
   /// The stream controller for the [onEnded] stream.
   @visibleForTesting
-  final onEndedStreamController =
+  final StreamController<html.MediaStreamTrack> onEndedController =
       StreamController<html.MediaStreamTrack>.broadcast();
 
   StreamSubscription<html.Event>? _onEndedSubscription;
+
+  /// The stream of the camera video recording errors.
+  ///
+  /// This occurs when the video recording is not allowed or an unsupported
+  /// codec is used.
+  ///
+  /// MediaRecorder.error:
+  /// https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/error_event
+  Stream<html.ErrorEvent> get onVideoRecordingError =>
+      videoRecordingErrorController.stream;
+
+  /// The stream controller for the [onVideoRecordingError] stream.
+  @visibleForTesting
+  final StreamController<html.ErrorEvent> videoRecordingErrorController =
+      StreamController<html.ErrorEvent>.broadcast();
+
+  StreamSubscription<html.Event>? _onVideoRecordingErrorSubscription;
 
   /// The camera flash mode.
   @visibleForTesting
@@ -95,6 +114,44 @@ class Camera {
   /// The current browser window used to access media devices.
   @visibleForTesting
   html.Window? window = html.window;
+
+  /// The recorder used to record a video from the camera.
+  @visibleForTesting
+  html.MediaRecorder? mediaRecorder;
+
+  /// Whether the video of the given type is supported.
+  @visibleForTesting
+  bool Function(String) isVideoTypeSupported =
+      html.MediaRecorder.isTypeSupported;
+
+  /// The list of consecutive video data files recorded with [mediaRecorder].
+  final List<html.Blob> _videoData = <html.Blob>[];
+
+  /// Completes when the video recording is stopped/finished.
+  Completer<XFile>? _videoAvailableCompleter;
+
+  /// A data listener fired when a new part of video data is available.
+  void Function(html.Event)? _videoDataAvailableListener;
+
+  /// A listener fired when a video recording is stopped.
+  void Function(html.Event)? _videoRecordingStoppedListener;
+
+  /// A builder to merge a list of blobs into a single blob.
+  @visibleForTesting
+  // TODO(stuartmorgan): Remove this 'ignore' once we don't analyze using 2.10
+  // any more. It's a false positive that is fixed in later versions.
+  // ignore: prefer_function_declarations_over_variables
+  html.Blob Function(List<html.Blob> blobs, String type) blobBuilder =
+      (List<html.Blob> blobs, String type) => html.Blob(blobs, type);
+
+  /// The stream that emits a [VideoRecordedEvent] when a video recording is created.
+  Stream<VideoRecordedEvent> get onVideoRecordedEvent =>
+      videoRecorderController.stream;
+
+  /// The stream controller for the [onVideoRecordedEvent] stream.
+  @visibleForTesting
+  final StreamController<VideoRecordedEvent> videoRecorderController =
+      StreamController<VideoRecordedEvent>.broadcast();
 
   /// Initializes the camera stream displayed in the [videoElement].
   /// Registers the camera view with [textureId] under [_getViewType] type.
@@ -124,13 +181,13 @@ class Camera {
 
     _applyDefaultVideoStyles(videoElement);
 
-    final videoTracks = stream!.getVideoTracks();
+    final List<html.MediaStreamTrack> videoTracks = stream!.getVideoTracks();
 
     if (videoTracks.isNotEmpty) {
-      final defaultVideoTrack = videoTracks.first;
+      final html.MediaStreamTrack defaultVideoTrack = videoTracks.first;
 
       _onEndedSubscription = defaultVideoTrack.onEnded.listen((html.Event _) {
-        onEndedStreamController.add(defaultVideoTrack);
+        onEndedController.add(defaultVideoTrack);
       });
     }
   }
@@ -156,14 +213,14 @@ class Camera {
 
   /// Stops the camera stream and resets the camera source.
   void stop() {
-    final videoTracks = stream!.getVideoTracks();
+    final List<html.MediaStreamTrack> videoTracks = stream!.getVideoTracks();
     if (videoTracks.isNotEmpty) {
-      onEndedStreamController.add(videoTracks.first);
+      onEndedController.add(videoTracks.first);
     }
 
-    final tracks = stream?.getTracks();
+    final List<html.MediaStreamTrack>? tracks = stream?.getTracks();
     if (tracks != null) {
-      for (final track in tracks) {
+      for (final html.MediaStreamTrack track in tracks) {
         track.stop();
       }
     }
@@ -176,17 +233,18 @@ class Camera {
   /// Enables the camera flash (torch mode) for a period of taking a picture
   /// if the flash mode is either [FlashMode.auto] or [FlashMode.always].
   Future<XFile> takePicture() async {
-    final shouldEnableTorchMode =
+    final bool shouldEnableTorchMode =
         flashMode == FlashMode.auto || flashMode == FlashMode.always;
 
     if (shouldEnableTorchMode) {
       _setTorchMode(enabled: true);
     }
 
-    final videoWidth = videoElement.videoWidth;
-    final videoHeight = videoElement.videoHeight;
-    final canvas = html.CanvasElement(width: videoWidth, height: videoHeight);
-    final isBackCamera = getLensDirection() == CameraLensDirection.back;
+    final int videoWidth = videoElement.videoWidth;
+    final int videoHeight = videoElement.videoHeight;
+    final html.CanvasElement canvas =
+        html.CanvasElement(width: videoWidth, height: videoHeight);
+    final bool isBackCamera = getLensDirection() == CameraLensDirection.back;
 
     // Flip the picture horizontally if it is not taken from a back camera.
     if (!isBackCamera) {
@@ -198,7 +256,7 @@ class Camera {
     canvas.context2D
         .drawImageScaled(videoElement, 0, 0, videoWidth, videoHeight);
 
-    final blob = await canvas.toBlob('image/jpeg');
+    final html.Blob blob = await canvas.toBlob('image/jpeg');
 
     if (shouldEnableTorchMode) {
       _setTorchMode(enabled: false);
@@ -212,17 +270,19 @@ class Camera {
   /// Returns [Size.zero] if the camera is missing a video track or
   /// the video track does not include the width or height setting.
   Size getVideoSize() {
-    final videoTracks = videoElement.srcObject?.getVideoTracks() ?? [];
+    final List<html.MediaStreamTrack> videoTracks =
+        videoElement.srcObject?.getVideoTracks() ?? <html.MediaStreamTrack>[];
 
     if (videoTracks.isEmpty) {
       return Size.zero;
     }
 
-    final defaultVideoTrack = videoTracks.first;
-    final defaultVideoTrackSettings = defaultVideoTrack.getSettings();
+    final html.MediaStreamTrack defaultVideoTrack = videoTracks.first;
+    final Map<dynamic, dynamic> defaultVideoTrackSettings =
+        defaultVideoTrack.getSettings();
 
-    final width = defaultVideoTrackSettings['width'];
-    final height = defaultVideoTrackSettings['height'];
+    final double? width = defaultVideoTrackSettings['width'] as double?;
+    final double? height = defaultVideoTrackSettings['height'] as double?;
 
     if (width != null && height != null) {
       return Size(width, height);
@@ -243,9 +303,11 @@ class Camera {
   /// Throws a [CameraWebException] if the torch mode is not supported
   /// or the camera has not been initialized or started.
   void setFlashMode(FlashMode mode) {
-    final mediaDevices = window?.navigator.mediaDevices;
-    final supportedConstraints = mediaDevices?.getSupportedConstraints();
-    final torchModeSupported = supportedConstraints?[_torchModeKey] ?? false;
+    final html.MediaDevices? mediaDevices = window?.navigator.mediaDevices;
+    final Map<dynamic, dynamic>? supportedConstraints =
+        mediaDevices?.getSupportedConstraints();
+    final bool torchModeSupported =
+        supportedConstraints?[_torchModeKey] as bool? ?? false;
 
     if (!torchModeSupported) {
       throw CameraWebException(
@@ -267,18 +329,19 @@ class Camera {
   /// Throws a [CameraWebException] if the torch mode is not supported
   /// or the camera has not been initialized or started.
   void _setTorchMode({required bool enabled}) {
-    final videoTracks = stream?.getVideoTracks() ?? [];
+    final List<html.MediaStreamTrack> videoTracks =
+        stream?.getVideoTracks() ?? <html.MediaStreamTrack>[];
 
     if (videoTracks.isNotEmpty) {
-      final defaultVideoTrack = videoTracks.first;
+      final html.MediaStreamTrack defaultVideoTrack = videoTracks.first;
 
       final bool canEnableTorchMode =
-          defaultVideoTrack.getCapabilities()[_torchModeKey] ?? false;
+          defaultVideoTrack.getCapabilities()[_torchModeKey] as bool? ?? false;
 
       if (canEnableTorchMode) {
-        defaultVideoTrack.applyConstraints({
-          "advanced": [
-            {
+        defaultVideoTrack.applyConstraints(<String, Object>{
+          'advanced': <Object>[
+            <String, Object>{
               _torchModeKey: enabled,
             }
           ]
@@ -318,7 +381,7 @@ class Camera {
   /// Throws a [CameraWebException] if the zoom level is invalid,
   /// not supported or the camera has not been initialized or started.
   void setZoomLevel(double zoom) {
-    final zoomLevelCapability =
+    final ZoomLevelCapability zoomLevelCapability =
         _cameraService.getZoomLevelCapabilityForCamera(this);
 
     if (zoom < zoomLevelCapability.minimum ||
@@ -330,9 +393,9 @@ class Camera {
       );
     }
 
-    zoomLevelCapability.videoTrack.applyConstraints({
-      "advanced": [
-        {
+    zoomLevelCapability.videoTrack.applyConstraints(<String, Object>{
+      'advanced': <Object>[
+        <String, Object>{
           ZoomLevelCapability.constraintName: zoom,
         }
       ]
@@ -344,16 +407,19 @@ class Camera {
   /// Returns null if the camera is missing a video track or
   /// the video track does not include the facing mode setting.
   CameraLensDirection? getLensDirection() {
-    final videoTracks = videoElement.srcObject?.getVideoTracks() ?? [];
+    final List<html.MediaStreamTrack> videoTracks =
+        videoElement.srcObject?.getVideoTracks() ?? <html.MediaStreamTrack>[];
 
     if (videoTracks.isEmpty) {
       return null;
     }
 
-    final defaultVideoTrack = videoTracks.first;
-    final defaultVideoTrackSettings = defaultVideoTrack.getSettings();
+    final html.MediaStreamTrack defaultVideoTrack = videoTracks.first;
+    final Map<dynamic, dynamic> defaultVideoTrackSettings =
+        defaultVideoTrack.getSettings();
 
-    final facingMode = defaultVideoTrackSettings['facingMode'];
+    final String? facingMode =
+        defaultVideoTrackSettings['facingMode'] as String?;
 
     if (facingMode != null) {
       return _cameraService.mapFacingModeToLensDirection(facingMode);
@@ -365,26 +431,208 @@ class Camera {
   /// Returns the registered view type of the camera.
   String getViewType() => _getViewType(textureId);
 
-  /// Disposes the camera by stopping the camera stream
-  /// and reloading the camera source.
+  /// Starts a new video recording using [html.MediaRecorder].
+  ///
+  /// Throws a [CameraWebException] if the provided maximum video duration is invalid
+  /// or the browser does not support any of the available video mime types
+  /// from [_videoMimeType].
+  Future<void> startVideoRecording({Duration? maxVideoDuration}) async {
+    if (maxVideoDuration != null && maxVideoDuration.inMilliseconds <= 0) {
+      throw CameraWebException(
+        textureId,
+        CameraErrorCode.notSupported,
+        'The maximum video duration must be greater than 0 milliseconds.',
+      );
+    }
+
+    mediaRecorder ??=
+        html.MediaRecorder(videoElement.srcObject!, <String, Object>{
+      'mimeType': _videoMimeType,
+    });
+
+    _videoAvailableCompleter = Completer<XFile>();
+
+    _videoDataAvailableListener =
+        (html.Event event) => _onVideoDataAvailable(event, maxVideoDuration);
+
+    _videoRecordingStoppedListener =
+        (html.Event event) => _onVideoRecordingStopped(event, maxVideoDuration);
+
+    mediaRecorder!.addEventListener(
+      'dataavailable',
+      _videoDataAvailableListener,
+    );
+
+    mediaRecorder!.addEventListener(
+      'stop',
+      _videoRecordingStoppedListener,
+    );
+
+    _onVideoRecordingErrorSubscription =
+        mediaRecorder!.onError.listen((html.Event event) {
+      final html.ErrorEvent error = event as html.ErrorEvent;
+      if (error != null) {
+        videoRecordingErrorController.add(error);
+      }
+    });
+
+    if (maxVideoDuration != null) {
+      mediaRecorder!.start(maxVideoDuration.inMilliseconds);
+    } else {
+      // Don't pass the null duration as that will fire a `dataavailable` event directly.
+      mediaRecorder!.start();
+    }
+  }
+
+  void _onVideoDataAvailable(
+    html.Event event, [
+    Duration? maxVideoDuration,
+  ]) {
+    final html.Blob? blob = (event as html.BlobEvent).data;
+
+    // Append the recorded part of the video to the list of all video data files.
+    if (blob != null) {
+      _videoData.add(blob);
+    }
+
+    // Stop the recorder if the video has a maxVideoDuration
+    // and the recording was not stopped manually.
+    if (maxVideoDuration != null && mediaRecorder!.state == 'recording') {
+      mediaRecorder!.stop();
+    }
+  }
+
+  Future<void> _onVideoRecordingStopped(
+    html.Event event, [
+    Duration? maxVideoDuration,
+  ]) async {
+    if (_videoData.isNotEmpty) {
+      // Concatenate all video data files into a single blob.
+      final String videoType = _videoData.first.type;
+      final html.Blob videoBlob = blobBuilder(_videoData, videoType);
+
+      // Create a file containing the video blob.
+      final XFile file = XFile(
+        html.Url.createObjectUrl(videoBlob),
+        mimeType: _videoMimeType,
+        name: videoBlob.hashCode.toString(),
+      );
+
+      // Emit an event containing the recorded video file.
+      videoRecorderController.add(
+        VideoRecordedEvent(textureId, file, maxVideoDuration),
+      );
+
+      _videoAvailableCompleter?.complete(file);
+    }
+
+    // Clean up the media recorder with its event listeners and video data.
+    mediaRecorder!.removeEventListener(
+      'dataavailable',
+      _videoDataAvailableListener,
+    );
+
+    mediaRecorder!.removeEventListener(
+      'stop',
+      _videoDataAvailableListener,
+    );
+
+    await _onVideoRecordingErrorSubscription?.cancel();
+
+    mediaRecorder = null;
+    _videoDataAvailableListener = null;
+    _videoRecordingStoppedListener = null;
+    _videoData.clear();
+  }
+
+  /// Pauses the current video recording.
+  ///
+  /// Throws a [CameraWebException] if the video recorder is uninitialized.
+  Future<void> pauseVideoRecording() async {
+    if (mediaRecorder == null) {
+      throw _videoRecordingNotStartedException;
+    }
+    mediaRecorder!.pause();
+  }
+
+  /// Resumes the current video recording.
+  ///
+  /// Throws a [CameraWebException] if the video recorder is uninitialized.
+  Future<void> resumeVideoRecording() async {
+    if (mediaRecorder == null) {
+      throw _videoRecordingNotStartedException;
+    }
+    mediaRecorder!.resume();
+  }
+
+  /// Stops the video recording and returns the captured video file.
+  ///
+  /// Throws a [CameraWebException] if the video recorder is uninitialized.
+  Future<XFile> stopVideoRecording() async {
+    if (mediaRecorder == null || _videoAvailableCompleter == null) {
+      throw _videoRecordingNotStartedException;
+    }
+
+    mediaRecorder!.stop();
+
+    return _videoAvailableCompleter!.future;
+  }
+
+  /// Disposes the camera by stopping the camera stream,
+  /// the video recording and reloading the camera source.
   Future<void> dispose() async {
-    /// Stop the camera stream.
+    // Stop the camera stream.
     stop();
 
-    /// Reset the [videoElement] to its initial state.
+    await videoRecorderController.close();
+    mediaRecorder = null;
+    _videoDataAvailableListener = null;
+
+    // Reset the [videoElement] to its initial state.
     videoElement
       ..srcObject = null
       ..load();
 
     await _onEndedSubscription?.cancel();
     _onEndedSubscription = null;
+    await onEndedController.close();
 
-    await onEndedStreamController.close();
+    await _onVideoRecordingErrorSubscription?.cancel();
+    _onVideoRecordingErrorSubscription = null;
+    await videoRecordingErrorController.close();
   }
+
+  /// Returns the first supported video mime type (amongst mp4 and webm)
+  /// to use when recording a video.
+  ///
+  /// Throws a [CameraWebException] if the browser does not support
+  /// any of the available video mime types.
+  String get _videoMimeType {
+    const List<String> types = <String>[
+      'video/mp4',
+      'video/webm',
+    ];
+
+    return types.firstWhere(
+      (String type) => isVideoTypeSupported(type),
+      orElse: () => throw CameraWebException(
+        textureId,
+        CameraErrorCode.notSupported,
+        'The browser does not support any of the following video types: ${types.join(',')}.',
+      ),
+    );
+  }
+
+  CameraWebException get _videoRecordingNotStartedException =>
+      CameraWebException(
+        textureId,
+        CameraErrorCode.videoRecordingNotStarted,
+        'The video recorder is uninitialized. The recording might not have been started. Make sure to call `startVideoRecording` first.',
+      );
 
   /// Applies default styles to the video [element].
   void _applyDefaultVideoStyles(html.VideoElement element) {
-    final isBackCamera = getLensDirection() == CameraLensDirection.back;
+    final bool isBackCamera = getLensDirection() == CameraLensDirection.back;
 
     // Flip the video horizontally if it is not taken from a back camera.
     if (!isBackCamera) {

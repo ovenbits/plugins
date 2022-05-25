@@ -3,22 +3,26 @@
 // found in the LICENSE file.
 
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Screen that shows an example of openFiles
 class OpenMultipleImagesPage extends StatelessWidget {
-  void _openImageFile(BuildContext context) async {
+  /// Default Constructor
+  const OpenMultipleImagesPage({Key? key}) : super(key: key);
+
+  Future<void> _openImageFile(BuildContext context) async {
     final XTypeGroup jpgsTypeGroup = XTypeGroup(
       label: 'JPEGs',
-      extensions: ['jpg', 'jpeg'],
+      extensions: <String>['jpg', 'jpeg'],
     );
     final XTypeGroup pngTypeGroup = XTypeGroup(
       label: 'PNGs',
-      extensions: ['png'],
+      extensions: <String>['png'],
     );
-    final List<XFile> files = await openFiles(acceptedTypeGroups: [
+    final List<XFile> files = await openFiles(acceptedTypeGroups: <XTypeGroup>[
       jpgsTypeGroup,
       pngTypeGroup,
     ]);
@@ -26,9 +30,9 @@ class OpenMultipleImagesPage extends StatelessWidget {
       // Operation was canceled by the user.
       return;
     }
-    await showDialog(
+    await showDialog<void>(
       context: context,
-      builder: (context) => MultipleImagesDisplay(files),
+      builder: (BuildContext context) => MultipleImagesDisplay(files),
     );
   }
 
@@ -36,7 +40,7 @@ class OpenMultipleImagesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Open multiple images"),
+        title: const Text('Open multiple images'),
       ),
       body: Center(
         child: Column(
@@ -47,7 +51,7 @@ class OpenMultipleImagesPage extends StatelessWidget {
                 primary: Colors.blue,
                 onPrimary: Colors.white,
               ),
-              child: Text('Press to open multiple images (png, jpg)'),
+              child: const Text('Press to open multiple images (png, jpg)'),
               onPressed: () => _openImageFile(context),
             ),
           ],
@@ -59,23 +63,23 @@ class OpenMultipleImagesPage extends StatelessWidget {
 
 /// Widget that displays a text file in a dialog
 class MultipleImagesDisplay extends StatelessWidget {
+  /// Default Constructor
+  const MultipleImagesDisplay(this.files, {Key? key}) : super(key: key);
+
   /// The files containing the images
   final List<XFile> files;
-
-  /// Default Constructor
-  MultipleImagesDisplay(this.files);
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Gallery'),
+      title: const Text('Gallery'),
       // On web the filePath is a blob url
       // while on other platforms it is a system path.
       content: Center(
         child: Row(
           children: <Widget>[
             ...files.map(
-              (file) => Flexible(
+              (XFile file) => Flexible(
                   child: kIsWeb
                       ? Image.network(file.path)
                       : Image.file(File(file.path))),
@@ -83,7 +87,7 @@ class MultipleImagesDisplay extends StatelessWidget {
           ],
         ),
       ),
-      actions: [
+      actions: <Widget>[
         TextButton(
           child: const Text('Close'),
           onPressed: () {

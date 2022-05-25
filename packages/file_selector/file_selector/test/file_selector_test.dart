@@ -2,23 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
-import 'package:test/fake.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 void main() {
   late FakeFileSelector fakePlatformImplementation;
-  final initialDirectory = '/home/flutteruser';
-  final confirmButtonText = 'Use this profile picture';
-  final suggestedName = 'suggested_name';
-  final acceptedTypeGroups = [
-    XTypeGroup(label: 'documents', mimeTypes: [
+  const String initialDirectory = '/home/flutteruser';
+  const String confirmButtonText = 'Use this profile picture';
+  const String suggestedName = 'suggested_name';
+  final List<XTypeGroup> acceptedTypeGroups = <XTypeGroup>[
+    XTypeGroup(label: 'documents', mimeTypes: <String>[
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessing',
     ]),
-    XTypeGroup(label: 'images', extensions: [
+    XTypeGroup(label: 'images', extensions: <String>[
       'jpg',
       'png',
     ]),
@@ -30,7 +29,7 @@ void main() {
   });
 
   group('openFile', () {
-    final expectedFile = XFile('path');
+    final XFile expectedFile = XFile('path');
 
     test('works', () async {
       fakePlatformImplementation
@@ -40,7 +39,7 @@ void main() {
             acceptedTypeGroups: acceptedTypeGroups)
         ..setFileResponse(<XFile>[expectedFile]);
 
-      final file = await openFile(
+      final XFile? file = await openFile(
         initialDirectory: initialDirectory,
         confirmButtonText: confirmButtonText,
         acceptedTypeGroups: acceptedTypeGroups,
@@ -52,7 +51,7 @@ void main() {
     test('works with no arguments', () async {
       fakePlatformImplementation.setFileResponse(<XFile>[expectedFile]);
 
-      final file = await openFile();
+      final XFile? file = await openFile();
 
       expect(file, expectedFile);
     });
@@ -62,7 +61,7 @@ void main() {
         ..setExpectations(initialDirectory: initialDirectory)
         ..setFileResponse(<XFile>[expectedFile]);
 
-      final file = await openFile(initialDirectory: initialDirectory);
+      final XFile? file = await openFile(initialDirectory: initialDirectory);
       expect(file, expectedFile);
     });
 
@@ -71,7 +70,7 @@ void main() {
         ..setExpectations(confirmButtonText: confirmButtonText)
         ..setFileResponse(<XFile>[expectedFile]);
 
-      final file = await openFile(confirmButtonText: confirmButtonText);
+      final XFile? file = await openFile(confirmButtonText: confirmButtonText);
       expect(file, expectedFile);
     });
 
@@ -80,13 +79,14 @@ void main() {
         ..setExpectations(acceptedTypeGroups: acceptedTypeGroups)
         ..setFileResponse(<XFile>[expectedFile]);
 
-      final file = await openFile(acceptedTypeGroups: acceptedTypeGroups);
+      final XFile? file =
+          await openFile(acceptedTypeGroups: acceptedTypeGroups);
       expect(file, expectedFile);
     });
   });
 
   group('openFiles', () {
-    final expectedFiles = [XFile('path')];
+    final List<XFile> expectedFiles = <XFile>[XFile('path')];
 
     test('works', () async {
       fakePlatformImplementation
@@ -96,19 +96,19 @@ void main() {
             acceptedTypeGroups: acceptedTypeGroups)
         ..setFileResponse(expectedFiles);
 
-      final file = await openFiles(
+      final List<XFile> files = await openFiles(
         initialDirectory: initialDirectory,
         confirmButtonText: confirmButtonText,
         acceptedTypeGroups: acceptedTypeGroups,
       );
 
-      expect(file, expectedFiles);
+      expect(files, expectedFiles);
     });
 
     test('works with no arguments', () async {
       fakePlatformImplementation.setFileResponse(expectedFiles);
 
-      final files = await openFiles();
+      final List<XFile> files = await openFiles();
 
       expect(files, expectedFiles);
     });
@@ -118,7 +118,8 @@ void main() {
         ..setExpectations(initialDirectory: initialDirectory)
         ..setFileResponse(expectedFiles);
 
-      final files = await openFiles(initialDirectory: initialDirectory);
+      final List<XFile> files =
+          await openFiles(initialDirectory: initialDirectory);
       expect(files, expectedFiles);
     });
 
@@ -127,7 +128,8 @@ void main() {
         ..setExpectations(confirmButtonText: confirmButtonText)
         ..setFileResponse(expectedFiles);
 
-      final files = await openFiles(confirmButtonText: confirmButtonText);
+      final List<XFile> files =
+          await openFiles(confirmButtonText: confirmButtonText);
       expect(files, expectedFiles);
     });
 
@@ -136,13 +138,14 @@ void main() {
         ..setExpectations(acceptedTypeGroups: acceptedTypeGroups)
         ..setFileResponse(expectedFiles);
 
-      final files = await openFiles(acceptedTypeGroups: acceptedTypeGroups);
+      final List<XFile> files =
+          await openFiles(acceptedTypeGroups: acceptedTypeGroups);
       expect(files, expectedFiles);
     });
   });
 
   group('getSavePath', () {
-    final expectedSavePath = '/example/path';
+    const String expectedSavePath = '/example/path';
 
     test('works', () async {
       fakePlatformImplementation
@@ -153,7 +156,7 @@ void main() {
             suggestedName: suggestedName)
         ..setPathResponse(expectedSavePath);
 
-      final savePath = await getSavePath(
+      final String? savePath = await getSavePath(
         initialDirectory: initialDirectory,
         confirmButtonText: confirmButtonText,
         acceptedTypeGroups: acceptedTypeGroups,
@@ -166,7 +169,7 @@ void main() {
     test('works with no arguments', () async {
       fakePlatformImplementation.setPathResponse(expectedSavePath);
 
-      final savePath = await getSavePath();
+      final String? savePath = await getSavePath();
       expect(savePath, expectedSavePath);
     });
 
@@ -175,7 +178,8 @@ void main() {
         ..setExpectations(initialDirectory: initialDirectory)
         ..setPathResponse(expectedSavePath);
 
-      final savePath = await getSavePath(initialDirectory: initialDirectory);
+      final String? savePath =
+          await getSavePath(initialDirectory: initialDirectory);
       expect(savePath, expectedSavePath);
     });
 
@@ -184,7 +188,8 @@ void main() {
         ..setExpectations(confirmButtonText: confirmButtonText)
         ..setPathResponse(expectedSavePath);
 
-      final savePath = await getSavePath(confirmButtonText: confirmButtonText);
+      final String? savePath =
+          await getSavePath(confirmButtonText: confirmButtonText);
       expect(savePath, expectedSavePath);
     });
 
@@ -193,7 +198,7 @@ void main() {
         ..setExpectations(acceptedTypeGroups: acceptedTypeGroups)
         ..setPathResponse(expectedSavePath);
 
-      final savePath =
+      final String? savePath =
           await getSavePath(acceptedTypeGroups: acceptedTypeGroups);
       expect(savePath, expectedSavePath);
     });
@@ -203,13 +208,13 @@ void main() {
         ..setExpectations(suggestedName: suggestedName)
         ..setPathResponse(expectedSavePath);
 
-      final savePath = await getSavePath(suggestedName: suggestedName);
+      final String? savePath = await getSavePath(suggestedName: suggestedName);
       expect(savePath, expectedSavePath);
     });
   });
 
   group('getDirectoryPath', () {
-    final expectedDirectoryPath = '/example/path';
+    const String expectedDirectoryPath = '/example/path';
 
     test('works', () async {
       fakePlatformImplementation
@@ -218,7 +223,7 @@ void main() {
             confirmButtonText: confirmButtonText)
         ..setPathResponse(expectedDirectoryPath);
 
-      final directoryPath = await getDirectoryPath(
+      final String? directoryPath = await getDirectoryPath(
         initialDirectory: initialDirectory,
         confirmButtonText: confirmButtonText,
       );
@@ -229,7 +234,7 @@ void main() {
     test('works with no arguments', () async {
       fakePlatformImplementation.setPathResponse(expectedDirectoryPath);
 
-      final directoryPath = await getDirectoryPath();
+      final String? directoryPath = await getDirectoryPath();
       expect(directoryPath, expectedDirectoryPath);
     });
 
@@ -238,7 +243,7 @@ void main() {
         ..setExpectations(initialDirectory: initialDirectory)
         ..setPathResponse(expectedDirectoryPath);
 
-      final directoryPath =
+      final String? directoryPath =
           await getDirectoryPath(initialDirectory: initialDirectory);
       expect(directoryPath, expectedDirectoryPath);
     });
@@ -248,7 +253,7 @@ void main() {
         ..setExpectations(confirmButtonText: confirmButtonText)
         ..setPathResponse(expectedDirectoryPath);
 
-      final directoryPath =
+      final String? directoryPath =
           await getDirectoryPath(confirmButtonText: confirmButtonText);
       expect(directoryPath, expectedDirectoryPath);
     });
@@ -279,10 +284,12 @@ class FakeFileSelector extends Fake
     this.confirmButtonText = confirmButtonText;
   }
 
+  // ignore: use_setters_to_change_properties
   void setFileResponse(List<XFile> files) {
     this.files = files;
   }
 
+  // ignore: use_setters_to_change_properties
   void setPathResponse(String path) {
     this.path = path;
   }
@@ -295,7 +302,7 @@ class FakeFileSelector extends Fake
   }) async {
     expect(acceptedTypeGroups, this.acceptedTypeGroups);
     expect(initialDirectory, this.initialDirectory);
-    expect(suggestedName, this.suggestedName);
+    expect(suggestedName, suggestedName);
     return files?[0];
   }
 
@@ -307,7 +314,7 @@ class FakeFileSelector extends Fake
   }) async {
     expect(acceptedTypeGroups, this.acceptedTypeGroups);
     expect(initialDirectory, this.initialDirectory);
-    expect(suggestedName, this.suggestedName);
+    expect(suggestedName, suggestedName);
     return files!;
   }
 

@@ -1,3 +1,51 @@
+## 2.1.6
+
+* Fixes issue in Flutter v3.0.0 where some updates to the map don't take effect on Android.
+* Fixes iOS native unit tests on M1 devices.
+* Minor fixes for new analysis options.
+
+## 2.1.5
+
+* Removes unnecessary imports.
+* Fixes library_private_types_in_public_api, sort_child_properties_last and use_key_in_widget_constructors
+  lint warnings.
+
+## 2.1.4
+
+* Updates Android Google maps sdk version to `18.0.2`.
+* Adds OS version support information to README.
+
+## 2.1.3
+
+* Fixes iOS crash on `EXC_BAD_ACCESS KERN_PROTECTION_FAILURE` if the map frame changes long after creation.
+
+## 2.1.2
+
+* Removes dependencies from `pubspec.yaml` that are only needed in `example/pubspec.yaml`
+* Updates Android compileSdkVersion to 31.
+* Internal code cleanup for stricter analysis options.
+
+## 2.1.1
+
+* Suppresses unchecked cast warning.
+
+## 2.1.0
+
+* Add iOS unit and UI integration test targets.
+* Provide access to Hybrid Composition on Android through the `GoogleMap` widget.
+
+## 2.0.11
+
+* Add additional marker drag events.
+
+## 2.0.10
+
+* Update minimum Flutter SDK to 2.5 and iOS deployment target to 9.0.
+
+## 2.0.9
+
+* Fix Android `NullPointerException` caused by the `GoogleMapController` being disposed before `GoogleMap` was ready.
+
 ## 2.0.8
 
 * Mark iOS arm64 simulators as unsupported.
@@ -183,7 +231,7 @@ GoogleMapController is now uniformly driven by implementing `DefaultLifecycleObs
 
 ## 0.5.26+1
 
-* Removes a errorneously added method from the GoogleMapController.h header file.
+* Removes an erroneously added method from the GoogleMapController.h header file.
 
 ## 0.5.26
 
