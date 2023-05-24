@@ -4,6 +4,7 @@
 
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
+import 'type_conversion.dart';
 import 'types.dart';
 
 /// String version of [launchUrl].
@@ -24,27 +25,18 @@ Future<bool> launchUrlString(
   WebViewConfiguration webViewConfiguration = const WebViewConfiguration(),
   String? webOnlyWindowName,
 }) async {
-  final bool isWebURL =
-      urlString.startsWith('http:') || urlString.startsWith('https:');
-  if (mode == LaunchMode.inAppWebView && !isWebURL) {
+  if (mode == LaunchMode.inAppWebView &&
+      !(urlString.startsWith('https:') || urlString.startsWith('http:'))) {
     throw ArgumentError.value(urlString, 'urlString',
         'To use an in-app web view, you must provide an http(s) URL.');
   }
-  final bool useWebView = mode == LaunchMode.inAppWebView ||
-      (isWebURL && mode == LaunchMode.platformDefault);
-
-  // TODO(stuartmorgan): Create a replacement platform interface method that
-  // uses something more like the new argument structure, and switch to using
-  // that, to support launch mode on more platforms.
-  return await UrlLauncherPlatform.instance.launch(
+  return UrlLauncherPlatform.instance.launchUrl(
     urlString,
-    useSafariVC: useWebView,
-    useWebView: useWebView,
-    enableJavaScript: webViewConfiguration.enableJavaScript,
-    enableDomStorage: webViewConfiguration.enableDomStorage,
-    universalLinksOnly: mode == LaunchMode.externalNonBrowserApplication,
-    headers: webViewConfiguration.headers,
-    webOnlyWindowName: webOnlyWindowName,
+    LaunchOptions(
+      mode: convertLaunchMode(mode),
+      webViewConfiguration: convertConfiguration(webViewConfiguration),
+      webOnlyWindowName: webOnlyWindowName,
+    ),
   );
 }
 
@@ -61,5 +53,5 @@ Future<bool> launchUrlString(
 /// others will immediately fail if the URL can't be parsed according to the
 /// official standards that define URL formats.
 Future<bool> canLaunchUrlString(String urlString) async {
-  return await UrlLauncherPlatform.instance.canLaunch(urlString);
+  return UrlLauncherPlatform.instance.canLaunch(urlString);
 }

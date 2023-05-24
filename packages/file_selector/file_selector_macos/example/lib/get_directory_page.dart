@@ -21,10 +21,12 @@ class GetDirectoryPage extends StatelessWidget {
       // Operation was canceled by the user.
       return;
     }
-    await showDialog<void>(
-      context: context,
-      builder: (BuildContext context) => TextDisplay(directoryPath),
-    );
+    if (context.mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (BuildContext context) => TextDisplay(directoryPath),
+      );
+    }
   }
 
   @override
@@ -39,7 +41,10 @@ class GetDirectoryPage extends StatelessWidget {
           children: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
+                // TODO(darrenaustin): Migrate to new API once it lands in stable: https://github.com/flutter/flutter/issues/105724
+                // ignore: deprecated_member_use
                 primary: Colors.blue,
+                // ignore: deprecated_member_use
                 onPrimary: Colors.white,
               ),
               child: const Text('Press to ask user to choose a directory'),

@@ -240,7 +240,7 @@ class MapUiBodyState extends State<MapUiBody> {
   }
 
   Future<String> _getFileData(String path) async {
-    return await rootBundle.loadString(path);
+    return rootBundle.loadString(path);
   }
 
   void _setMapStyle(String mapStyle) {
@@ -336,7 +336,6 @@ class MapUiBodyState extends State<MapUiBody> {
       );
     }
     return Column(
-      mainAxisAlignment: MainAxisAlignment.start,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: columnChildren,
     );

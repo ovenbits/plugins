@@ -36,11 +36,11 @@ Directories support by platform:
 | External Storage | ✔️ | ❌ | ❌ | ❌️ | ❌️ |
 | External Cache Directories | ✔️ | ❌ | ❌ | ❌️ | ❌️ |
 | External Storage Directories | ✔️ | ❌ | ❌ | ❌️ | ❌️ |
-| Downloads | ❌ | ❌ | ✔️ | ✔️ | ✔️ |
+| Downloads | ❌ | ✔️ | ✔️ | ✔️ | ✔️ |
 
 ## Testing
 
 `path_provider` now uses a `PlatformInterface`, meaning that not all platforms share a single `PlatformChannel`-based implementation.
 With that change, tests should be updated to mock `PathProviderPlatform` rather than `PlatformChannel`.
 
-See this `path_provider` [test](https://github.com/flutter/plugins/blob/master/packages/path_provider/path_provider/test/path_provider_test.dart) for an example.
+See this `path_provider` [test](https://github.com/flutter/plugins/blob/main/packages/path_provider/path_provider/test/path_provider_test.dart) for an example.

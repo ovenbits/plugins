@@ -25,7 +25,7 @@ void main() {
           uri: uri,
           target: LinkTarget.blank,
           builder: (BuildContext context, FollowLink? followLink) {
-            return Container(width: 100, height: 100);
+            return const SizedBox(width: 100, height: 100);
           },
         )),
       ));
@@ -43,7 +43,7 @@ void main() {
           uri: uri2,
           target: LinkTarget.self,
           builder: (BuildContext context, FollowLink? followLink) {
-            return Container(width: 100, height: 100);
+            return const SizedBox(width: 100, height: 100);
           },
         )),
       ));
@@ -60,7 +60,7 @@ void main() {
           uri: uri3,
           target: LinkTarget.self,
           builder: (BuildContext context, FollowLink? followLink) {
-            return Container(width: 100, height: 100);
+            return const SizedBox(width: 100, height: 100);
           },
         )),
       ));
@@ -113,7 +113,7 @@ void main() {
           uri: null,
           target: LinkTarget.defaultTarget,
           builder: (BuildContext context, FollowLink? followLink) {
-            return Container(width: 100, height: 100);
+            return const SizedBox(width: 100, height: 100);
           },
         )),
       ));
@@ -122,6 +122,36 @@ void main() {
 
       final html.Element anchor = _findSingleAnchor();
       expect(anchor.hasAttribute('href'), false);
+    });
+
+    testWidgets('can be created and disposed', (WidgetTester tester) async {
+      final Uri uri = Uri.parse('http://foobar');
+      const int itemCount = 500;
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: MediaQuery(
+            data: const MediaQueryData(),
+            child: ListView.builder(
+              itemCount: itemCount,
+              itemBuilder: (_, int index) => WebLinkDelegate(TestLinkInfo(
+                uri: uri,
+                target: LinkTarget.defaultTarget,
+                builder: (BuildContext context, FollowLink? followLink) =>
+                    Text('#$index', textAlign: TextAlign.center),
+              )),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('#${itemCount - 1}'),
+        800,
+        maxScrolls: 1000,
+      );
     });
   });
 }

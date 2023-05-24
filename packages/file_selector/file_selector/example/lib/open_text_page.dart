@@ -4,6 +4,7 @@
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// Screen that shows an example of openFile
 class OpenTextPage extends StatelessWidget {
@@ -11,12 +12,19 @@ class OpenTextPage extends StatelessWidget {
   const OpenTextPage({Key? key}) : super(key: key);
 
   Future<void> _openTextFile(BuildContext context) async {
-    final XTypeGroup typeGroup = XTypeGroup(
+    const XTypeGroup typeGroup = XTypeGroup(
       label: 'text',
       extensions: <String>['txt', 'json'],
     );
-    final XFile? file =
-        await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    // This demonstrates using an initial directory for the prompt, which should
+    // only be done in cases where the application can likely predict where the
+    // file would be. In most cases, this parameter should not be provided.
+    final String initialDirectory =
+        (await getApplicationDocumentsDirectory()).path;
+    final XFile? file = await openFile(
+      acceptedTypeGroups: <XTypeGroup>[typeGroup],
+      initialDirectory: initialDirectory,
+    );
     if (file == null) {
       // Operation was canceled by the user.
       return;
@@ -24,10 +32,12 @@ class OpenTextPage extends StatelessWidget {
     final String fileName = file.name;
     final String fileContent = await file.readAsString();
 
-    await showDialog<void>(
-      context: context,
-      builder: (BuildContext context) => TextDisplay(fileName, fileContent),
-    );
+    if (context.mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (BuildContext context) => TextDisplay(fileName, fileContent),
+      );
+    }
   }
 
   @override
@@ -42,7 +52,10 @@ class OpenTextPage extends StatelessWidget {
           children: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
+                // TODO(darrenaustin): Migrate to new API once it lands in stable: https://github.com/flutter/flutter/issues/105724
+                // ignore: deprecated_member_use
                 primary: Colors.blue,
+                // ignore: deprecated_member_use
                 onPrimary: Colors.white,
               ),
               child: const Text('Press to open a text file (json, txt)'),

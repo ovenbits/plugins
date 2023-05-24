@@ -14,7 +14,9 @@ import '../store_kit_wrappers/sk_test_stub_objects.dart';
 
 class FakeStoreKitPlatform {
   FakeStoreKitPlatform() {
-    channel.setMockMethodCallHandler(onMethodCall);
+    _ambiguate(TestDefaultBinaryMessengerBinding.instance)!
+        .defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, onMethodCall);
   }
 
   // pre-configured store information
@@ -30,6 +32,7 @@ class FakeStoreKitPlatform {
   PlatformException? restoreException;
   SKError? testRestoredError;
   bool queueIsActive = false;
+  Map<String, dynamic> discountReceived = <String, dynamic>{};
 
   void reset() {
     transactions = <SKPaymentTransactionWrapper>[];
@@ -54,65 +57,68 @@ class FakeStoreKitPlatform {
     restoreException = null;
     testRestoredError = null;
     queueIsActive = false;
+    discountReceived = <String, dynamic>{};
   }
 
-  SKPaymentTransactionWrapper createPendingTransaction(String id) {
+  SKPaymentTransactionWrapper createPendingTransaction(String id,
+      {int quantity = 1}) {
     return SKPaymentTransactionWrapper(
-        transactionIdentifier: '',
-        payment: SKPaymentWrapper(productIdentifier: id),
-        transactionState: SKPaymentTransactionStateWrapper.purchasing,
-        transactionTimeStamp: 123123.121,
-        error: null,
-        originalTransaction: null);
+      transactionIdentifier: '',
+      payment: SKPaymentWrapper(productIdentifier: id, quantity: quantity),
+      transactionState: SKPaymentTransactionStateWrapper.purchasing,
+      transactionTimeStamp: 123123.121,
+    );
   }
 
   SKPaymentTransactionWrapper createPurchasedTransaction(
-      String productId, String transactionId) {
+      String productId, String transactionId,
+      {int quantity = 1}) {
     return SKPaymentTransactionWrapper(
-        payment: SKPaymentWrapper(productIdentifier: productId),
+        payment:
+            SKPaymentWrapper(productIdentifier: productId, quantity: quantity),
         transactionState: SKPaymentTransactionStateWrapper.purchased,
         transactionTimeStamp: 123123.121,
-        transactionIdentifier: transactionId,
-        error: null,
-        originalTransaction: null);
+        transactionIdentifier: transactionId);
   }
 
-  SKPaymentTransactionWrapper createFailedTransaction(String productId) {
+  SKPaymentTransactionWrapper createFailedTransaction(String productId,
+      {int quantity = 1}) {
     return SKPaymentTransactionWrapper(
         transactionIdentifier: '',
-        payment: SKPaymentWrapper(productIdentifier: productId),
+        payment:
+            SKPaymentWrapper(productIdentifier: productId, quantity: quantity),
         transactionState: SKPaymentTransactionStateWrapper.failed,
         transactionTimeStamp: 123123.121,
         error: const SKError(
             code: 0,
             domain: 'ios_domain',
-            userInfo: <String, Object>{'message': 'an error message'}),
-        originalTransaction: null);
+            userInfo: <String, Object>{'message': 'an error message'}));
   }
 
   SKPaymentTransactionWrapper createCanceledTransaction(
-      String productId, int errorCode) {
+      String productId, int errorCode,
+      {int quantity = 1}) {
     return SKPaymentTransactionWrapper(
         transactionIdentifier: '',
-        payment: SKPaymentWrapper(productIdentifier: productId),
+        payment:
+            SKPaymentWrapper(productIdentifier: productId, quantity: quantity),
         transactionState: SKPaymentTransactionStateWrapper.failed,
         transactionTimeStamp: 123123.121,
         error: SKError(
             code: errorCode,
             domain: 'ios_domain',
-            userInfo: const <String, Object>{'message': 'an error message'}),
-        originalTransaction: null);
+            userInfo: const <String, Object>{'message': 'an error message'}));
   }
 
   SKPaymentTransactionWrapper createRestoredTransaction(
-      String productId, String transactionId) {
+      String productId, String transactionId,
+      {int quantity = 1}) {
     return SKPaymentTransactionWrapper(
-        payment: SKPaymentWrapper(productIdentifier: productId),
+        payment:
+            SKPaymentWrapper(productIdentifier: productId, quantity: quantity),
         transactionState: SKPaymentTransactionStateWrapper.restored,
         transactionTimeStamp: 123123.121,
-        transactionIdentifier: transactionId,
-        error: null,
-        originalTransaction: null);
+        transactionIdentifier: transactionId);
   }
 
   Future<dynamic> onMethodCall(MethodCall call) {
@@ -165,34 +171,53 @@ class FakeStoreKitPlatform {
         receiptData = 'refreshed receipt data';
         return Future<void>.sync(() {});
       case '-[InAppPurchasePlugin addPayment:result:]':
-        final String id = call.arguments['productIdentifier'] as String;
+        final Map<String, Object?> arguments = _getArgumentDictionary(call);
+        final String id = arguments['productIdentifier']! as String;
+        final int quantity = arguments['quantity']! as int;
+
+        // Keep the received paymentDiscount parameter when testing payment with discount.
+        if (arguments['applicationUsername']! == 'userWithDiscount') {
+          final Map<dynamic, dynamic>? discountArgument =
+              arguments['paymentDiscount'] as Map<dynamic, dynamic>?;
+          if (discountArgument != null) {
+            discountReceived = discountArgument.cast<String, dynamic>();
+          } else {
+            discountReceived = <String, dynamic>{};
+          }
+        }
+
         final SKPaymentTransactionWrapper transaction =
-            createPendingTransaction(id);
+            createPendingTransaction(id, quantity: quantity);
+        transactions.add(transaction);
         InAppPurchaseStoreKitPlatform.observer.updatedTransactions(
             transactions: <SKPaymentTransactionWrapper>[transaction]);
         sleep(const Duration(milliseconds: 30));
         if (testTransactionFail) {
           final SKPaymentTransactionWrapper transactionFailed =
-              createFailedTransaction(id);
+              createFailedTransaction(id, quantity: quantity);
           InAppPurchaseStoreKitPlatform.observer.updatedTransactions(
               transactions: <SKPaymentTransactionWrapper>[transactionFailed]);
         } else if (testTransactionCancel > 0) {
           final SKPaymentTransactionWrapper transactionCanceled =
-              createCanceledTransaction(id, testTransactionCancel);
+              createCanceledTransaction(id, testTransactionCancel,
+                  quantity: quantity);
           InAppPurchaseStoreKitPlatform.observer.updatedTransactions(
               transactions: <SKPaymentTransactionWrapper>[transactionCanceled]);
         } else {
           final SKPaymentTransactionWrapper transactionFinished =
               createPurchasedTransaction(
-                  id, transaction.transactionIdentifier ?? '');
+                  id, transaction.transactionIdentifier ?? '',
+                  quantity: quantity);
           InAppPurchaseStoreKitPlatform.observer.updatedTransactions(
               transactions: <SKPaymentTransactionWrapper>[transactionFinished]);
         }
         break;
       case '-[InAppPurchasePlugin finishTransaction:result:]':
+        final Map<String, Object?> arguments = _getArgumentDictionary(call);
         finishedTransactions.add(createPurchasedTransaction(
-            call.arguments['productIdentifier'] as String,
-            call.arguments['transactionIdentifier'] as String));
+            arguments['productIdentifier']! as String,
+            arguments['transactionIdentifier']! as String,
+            quantity: transactions.first.payment.quantity));
         break;
       case '-[SKPaymentQueue startObservingTransactionQueue]':
         queueIsActive = true;
@@ -203,4 +228,18 @@ class FakeStoreKitPlatform {
     }
     return Future<void>.sync(() {});
   }
+
+  /// Returns the arguments of [call] as typed string-keyed Map.
+  ///
+  /// This does not do any type validation, so is only safe to call if the
+  /// arguments are known to be a map.
+  Map<String, Object?> _getArgumentDictionary(MethodCall call) {
+    return (call.arguments as Map<Object?, Object?>).cast<String, Object?>();
+  }
 }
+
+/// This allows a value of type T or T? to be treated as a value of type T?.
+///
+/// We use this so that APIs that have become non-nullable can still be used
+/// with `!` and `?` on the stable branch.
+T? _ambiguate<T>(T? value) => value;

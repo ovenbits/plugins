@@ -24,7 +24,14 @@ void main() {
     test('Cannot be implemented with `implements`', () {
       expect(() {
         UrlLauncherPlatform.instance = ImplementsUrlLauncherPlatform();
-      }, throwsA(isInstanceOf<AssertionError>()));
+        // In versions of `package:plugin_platform_interface` prior to fixing
+        // https://github.com/flutter/flutter/issues/109339, an attempt to
+        // implement a platform interface using `implements` would sometimes
+        // throw a `NoSuchMethodError` and other times throw an
+        // `AssertionError`.  After the issue is fixed, an `AssertionError` will
+        // always be thrown.  For the purpose of this test, we don't really care
+        // what exception is thrown, so just allow any exception.
+      }, throwsA(anything));
     });
 
     test('Can be mocked with `implements`', () {
@@ -41,7 +48,9 @@ void main() {
     const MethodChannel channel =
         MethodChannel('plugins.flutter.io/url_launcher');
     final List<MethodCall> log = <MethodCall>[];
-    channel.setMockMethodCallHandler((MethodCall methodCall) async {
+    _ambiguate(TestDefaultBinaryMessengerBinding.instance)!
+        .defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
       log.add(methodCall);
 
       // Return null explicitly instead of relying on the implicit null
@@ -316,3 +325,9 @@ class ExtendsUrlLauncherPlatform extends UrlLauncherPlatform {
   @override
   final LinkDelegate? linkDelegate = null;
 }
+
+/// This allows a value of type T or T? to be treated as a value of type T?.
+///
+/// We use this so that APIs that have become non-nullable can still be used
+/// with `!` and `?` on the stable branch.
+T? _ambiguate<T>(T? value) => value;

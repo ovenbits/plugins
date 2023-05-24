@@ -1,3 +1,39 @@
+## NEXT
+
+* Updates minimum Flutter version to 3.0.
+
+## 2.3.10
+
+* Adds compatibilty with version 6.0 of the platform interface.
+* Fixes file URI construction in example.
+* Updates code for new analysis options.
+* Updates code for `no_leading_underscores_for_local_identifiers` lint.
+* Updates minimum Flutter version to 2.10.
+* Fixes violations of new analysis option use_named_constants.
+* Removes an unnecessary override in example code.
+
+## 2.3.9
+
+* Updates ExoPlayer to 2.18.1.
+* Fixes avoid_redundant_argument_values lint warnings and minor typos.
+
+## 2.3.8
+
+* Updates ExoPlayer to 2.18.0.
+
+## 2.3.7
+
+* Bumps gradle version to 7.2.1.
+* Ignores unnecessary import warnings in preparation for [upcoming Flutter changes](https://github.com/flutter/flutter/pull/106316).
+
+## 2.3.6
+
+* Updates references to the obsolete master branch.
+
+## 2.3.5
+
+* Sets rotationCorrection for videos recorded in landscapeRight (https://github.com/flutter/flutter/issues/60327).
+
 ## 2.3.4
 
 * Updates ExoPlayer to 2.17.1.

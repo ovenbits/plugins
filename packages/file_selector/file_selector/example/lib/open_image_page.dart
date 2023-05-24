@@ -14,24 +14,27 @@ class OpenImagePage extends StatelessWidget {
   const OpenImagePage({Key? key}) : super(key: key);
 
   Future<void> _openImageFile(BuildContext context) async {
-    final XTypeGroup typeGroup = XTypeGroup(
+    // #docregion SingleOpen
+    const XTypeGroup typeGroup = XTypeGroup(
       label: 'images',
       extensions: <String>['jpg', 'png'],
     );
-    final List<XFile> files =
-        await openFiles(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
-    if (files.isEmpty) {
+    final XFile? file =
+        await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    // #enddocregion SingleOpen
+    if (file == null) {
       // Operation was canceled by the user.
       return;
     }
-    final XFile file = files[0];
     final String fileName = file.name;
     final String filePath = file.path;
 
-    await showDialog<void>(
-      context: context,
-      builder: (BuildContext context) => ImageDisplay(fileName, filePath),
-    );
+    if (context.mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (BuildContext context) => ImageDisplay(fileName, filePath),
+      );
+    }
   }
 
   @override
@@ -46,7 +49,10 @@ class OpenImagePage extends StatelessWidget {
           children: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
+                // TODO(darrenaustin): Migrate to new API once it lands in stable: https://github.com/flutter/flutter/issues/105724
+                // ignore: deprecated_member_use
                 primary: Colors.blue,
+                // ignore: deprecated_member_use
                 onPrimary: Colors.white,
               ),
               child: const Text('Press to open an image file(png, jpg)'),

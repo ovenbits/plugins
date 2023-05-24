@@ -35,7 +35,6 @@ class AnalyzeCommand extends PackageLoopingCommand {
   }
 
   static const String _customAnalysisFlag = 'custom-analysis';
-
   static const String _analysisSdk = 'analysis-sdk';
 
   late String _dartBinaryPath;
@@ -104,10 +103,11 @@ class AnalyzeCommand extends PackageLoopingCommand {
 
   @override
   Future<PackageResult> runForPackage(RepositoryPackage package) async {
-    // Analysis runs over the package and all subpackages, so all of them need
-    // `flutter pub get` run before analyzing. `example` packages can be
-    // skipped since 'flutter packages get' automatically runs `pub get` in
-    // examples as part of handling the parent directory.
+    // Analysis runs over the package and all subpackages (unless only lib/ is
+    // being analyzed), so all of them need `flutter pub get` run before
+    // analyzing. `example` packages can be skipped since 'flutter packages get'
+    // automatically runs `pub get` in examples as part of handling the parent
+    // directory.
     final List<RepositoryPackage> packagesToGet = <RepositoryPackage>[
       package,
       ...await getSubpackages(package).toList(),
@@ -117,10 +117,7 @@ class AnalyzeCommand extends PackageLoopingCommand {
           !RepositoryPackage(packageToGet.directory.parent)
               .pubspecFile
               .existsSync()) {
-        final int exitCode = await processRunner.runAndStream(
-            flutterCommand, <String>['pub', 'get'],
-            workingDir: packageToGet.directory);
-        if (exitCode != 0) {
+        if (!await _runPubCommand(packageToGet, 'get')) {
           return PackageResult.fail(<String>['Unable to get dependencies']);
         }
       }
@@ -136,5 +133,12 @@ class AnalyzeCommand extends PackageLoopingCommand {
       return PackageResult.fail();
     }
     return PackageResult.success();
+  }
+
+  Future<bool> _runPubCommand(RepositoryPackage package, String command) async {
+    final int exitCode = await processRunner.runAndStream(
+        flutterCommand, <String>['pub', command],
+        workingDir: package.directory);
+    return exitCode == 0;
   }
 }

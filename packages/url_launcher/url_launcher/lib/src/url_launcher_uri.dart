@@ -4,8 +4,10 @@
 
 import 'dart:async';
 
-import 'package:url_launcher/url_launcher_string.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
+
+import '../url_launcher_string.dart';
+import 'type_conversion.dart';
 
 /// Passes [url] to the underlying platform for handling.
 ///
@@ -43,20 +45,18 @@ Future<bool> launchUrl(
   WebViewConfiguration webViewConfiguration = const WebViewConfiguration(),
   String? webOnlyWindowName,
 }) async {
-  final bool isWebURL = url.scheme == 'http' || url.scheme == 'https';
-  if (mode == LaunchMode.inAppWebView && !isWebURL) {
+  if (mode == LaunchMode.inAppWebView &&
+      !(url.scheme == 'https' || url.scheme == 'http')) {
     throw ArgumentError.value(url, 'url',
         'To use an in-app web view, you must provide an http(s) URL.');
   }
-  // TODO(stuartmorgan): Use UrlLauncherPlatform directly once a new API
-  // that better matches these parameters has been added. For now, delegate to
-  // launchUrlString so that there's only one copy of the parameter translation
-  // logic.
-  return await launchUrlString(
+  return UrlLauncherPlatform.instance.launchUrl(
     url.toString(),
-    mode: mode,
-    webViewConfiguration: webViewConfiguration,
-    webOnlyWindowName: webOnlyWindowName,
+    LaunchOptions(
+      mode: convertLaunchMode(mode),
+      webViewConfiguration: convertConfiguration(webViewConfiguration),
+      webOnlyWindowName: webOnlyWindowName,
+    ),
   );
 }
 
@@ -75,7 +75,7 @@ Future<bool> launchUrl(
 ///   that are always assumed to be supported (such as http(s)), as web pages
 ///   are never allowed to query installed applications.
 Future<bool> canLaunchUrl(Uri url) async {
-  return await UrlLauncherPlatform.instance.canLaunch(url.toString());
+  return UrlLauncherPlatform.instance.canLaunch(url.toString());
 }
 
 /// Closes the current in-app web view, if one was previously opened by
@@ -84,5 +84,5 @@ Future<bool> canLaunchUrl(Uri url) async {
 /// If [launchUrl] was never called with [LaunchMode.inAppWebView], then this
 /// call will have no effect.
 Future<void> closeInAppWebView() async {
-  return await UrlLauncherPlatform.instance.closeWebView();
+  return UrlLauncherPlatform.instance.closeWebView();
 }

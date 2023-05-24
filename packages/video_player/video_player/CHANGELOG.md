@@ -1,5 +1,49 @@
 ## NEXT
 
+* Updates minimum Flutter version to 3.0.
+
+## 2.5.1
+
+* Updates code for stricter lint checks.
+
+## 2.5.0
+
+* Exposes `VideoScrubber` so it can be used to make custom video progress indicators
+
+## 2.4.10
+
+* Adds compatibilty with version 6.0 of the platform interface.
+
+## 2.4.9
+
+* Fixes file URI construction.
+
+## 2.4.8
+
+* Updates code for new analysis options.
+* Updates code for `no_leading_underscores_for_local_identifiers` lint.
+
+## 2.4.7
+
+* Updates README via code excerpts.
+* Fixes violations of new analysis option use_named_constants.
+
+## 2.4.6
+
+* Fixes avoid_redundant_argument_values lint warnings and minor typos.
+
+## 2.4.5
+
+* Ignores unnecessary import warnings in preparation for [upcoming Flutter changes](https://github.com/flutter/flutter/pull/104231).
+* Fixes an exception when a disposed VideoPlayerController is disposed again.
+
+## 2.4.4
+
+* Updates references to the obsolete master branch.
+
+## 2.4.3
+
+* Fixes Android to correctly display videos recorded in landscapeRight ([#60327](https://github.com/flutter/flutter/issues/60327)).
 * Fixes order-dependent unit tests.
 
 ## 2.4.2

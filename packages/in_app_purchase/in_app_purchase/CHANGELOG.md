@@ -1,3 +1,41 @@
+## 3.1.4
+
+* Updates iOS minimum version in README.
+
+## 3.1.3
+
+* Ignores a lint in the example app for backwards compatibility.
+
+## 3.1.2
+
+* Updates example code for `use_build_context_synchronously` lint.
+* Updates minimum Flutter version to 3.0.
+
+## 3.1.1
+
+* Adds screenshots to pubspec.yaml.
+
+## 3.1.0
+
+* Adds macOS as a supported platform.
+
+## 3.0.8
+
+* Updates minimum Flutter version to 2.10.
+* Bumps minimum in_app_purchase_android to 0.2.3.
+
+## 3.0.7
+
+* Fixes avoid_redundant_argument_values lint warnings and minor typos.
+
+## 3.0.6
+
+* Ignores deprecation warnings for upcoming styleFrom button API changes.
+
+## 3.0.5
+
+* Updates references to the obsolete master branch.
+
 ## 3.0.4
 
 * Minor fixes for new analysis options.

@@ -1,3 +1,41 @@
+## NEXT
+
+* Updates minimum Flutter version to 3.0.
+
+## 2.0.1
+
+* Improves error message when a platform interface class is used before `WebViewPlatform.instance` has been set.
+
+## 2.0.0
+
+* **Breaking Change**: Releases new interface. See [documentation](https://pub.dev/documentation/webview_flutter_platform_interface/2.0.0/) and [design doc](https://flutter.dev/go/webview_flutter_4_interface)
+  for more details.
+* **Breaking Change**: Removes MethodChannel implementation of interface. All platform
+  implementations will now need to create their own by implementing `WebViewPlatform`.
+
+## 1.9.5
+
+* Updates code for `no_leading_underscores_for_local_identifiers` lint.
+
+## 1.9.4
+
+* Updates imports for `prefer_relative_imports`.
+
+## 1.9.3
+
+* Updates minimum Flutter version to 2.10.
+* Removes `BuildParams` from v4 interface and adds `layoutDirection` to the creation params.
+
+## 1.9.2
+
+* Fixes avoid_redundant_argument_values lint warnings and minor typos.
+* Ignores unnecessary import warnings in preparation for [upcoming Flutter changes](https://github.com/flutter/flutter/pull/106316).
+* Adds missing build params for v4 WebViewWidget interface.
+
+## 1.9.1
+
+* Ignores unnecessary import warnings in preparation for [upcoming Flutter changes](https://github.com/flutter/flutter/pull/104231).
+
 ## 1.9.0
 
 * Adds the first iteration of the v4 webview_flutter interface implementation.

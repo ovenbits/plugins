@@ -12,7 +12,7 @@ import 'package:webview_flutter_wkwebview/src/common/instance_manager.dart';
 import 'package:webview_flutter_wkwebview/src/ui_kit/ui_kit.dart';
 import 'package:webview_flutter_wkwebview/src/web_kit/web_kit.dart';
 
-import '../common/test_web_kit.pigeon.dart';
+import '../common/test_web_kit.g.dart';
 import 'ui_kit_test.mocks.dart';
 
 @GenerateMocks(<Type>[
@@ -28,7 +28,7 @@ void main() {
     late InstanceManager instanceManager;
 
     setUp(() {
-      instanceManager = InstanceManager();
+      instanceManager = InstanceManager(onWeakReferenceRemoved: (_) {});
     });
 
     group('UIScrollView', () {
@@ -54,7 +54,7 @@ void main() {
           webView,
           instanceManager: instanceManager,
         );
-        scrollViewInstanceId = instanceManager.getInstanceId(scrollView)!;
+        scrollViewInstanceId = instanceManager.getIdentifier(scrollView)!;
       });
 
       tearDown(() {
@@ -97,8 +97,8 @@ void main() {
         mockPlatformHostApi = MockTestUIViewHostApi();
         TestUIViewHostApi.setup(mockPlatformHostApi);
 
-        view = UIView(instanceManager: instanceManager);
-        viewInstanceId = instanceManager.tryAddInstance(view)!;
+        view = UIView.detached(instanceManager: instanceManager);
+        viewInstanceId = instanceManager.addDartCreatedInstance(view);
       });
 
       tearDown(() {

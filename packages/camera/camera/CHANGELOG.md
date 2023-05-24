@@ -1,3 +1,61 @@
+## 0.10.3
+
+* Adds back use of Optional type.
+
+## 0.10.2+1
+
+* Updates code for stricter lint checks.
+
+## 0.10.2
+
+* Implements option to also stream when recording a video.
+
+## 0.10.1
+
+* Remove usage of deprecated quiver Optional type.
+
+## 0.10.0+5
+
+* Updates code for stricter lint checks.
+
+## 0.10.0+4
+
+* Removes usage of `_ambiguate` method in example.
+* Updates minimum Flutter version to 3.0.
+
+## 0.10.0+3
+
+* Updates code for `no_leading_underscores_for_local_identifiers` lint.
+
+## 0.10.0+2
+
+* Updates imports for `prefer_relative_imports`.
+* Updates minimum Flutter version to 2.10.
+
+## 0.10.0+1
+
+* Fixes avoid_redundant_argument_values lint warnings and minor typos.
+
+## 0.10.0
+
+* **Breaking Change** Bumps default camera_web package version, which updates permission exception code from `cameraPermission` to `CameraAccessDenied`.
+* **Breaking Change** Bumps default camera_android package version, which updates permission exception code from `cameraPermission` to
+  `CameraAccessDenied` and `AudioAccessDenied`.
+* Ignores unnecessary import warnings in preparation for [upcoming Flutter changes](https://github.com/flutter/flutter/pull/106316).
+
+## 0.9.8+1
+
+* Ignores deprecation warnings for upcoming styleFrom button API changes.
+
+## 0.9.8
+
+* Moves Android and iOS implementations to federated packages.
+* Ignores unnecessary import warnings in preparation for [upcoming Flutter changes](https://github.com/flutter/flutter/pull/104231).
+
+## 0.9.7+1
+
+* Moves streaming implementation to the platform interface package.
+
 ## 0.9.7
 
 * Returns all the available cameras on iOS.

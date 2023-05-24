@@ -285,7 +285,7 @@ class PlaceMarkerBodyState extends State<PlaceMarkerBody> {
       bitmapIcon.complete(bitmap);
     }));
 
-    return await bitmapIcon.future;
+    return bitmapIcon.future;
   }
 
   @override
@@ -402,7 +402,6 @@ class PlaceMarkerBodyState extends State<PlaceMarkerBody> {
           padding: const EdgeInsets.only(left: 12, right: 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            mainAxisSize: MainAxisSize.max,
             children: <Widget>[
               if (markerPosition == null)
                 Container()

@@ -1,3 +1,63 @@
+## 1.0.18
+
+* Updates minimum Flutter version to 3.0.
+* Updates androidx.core version to 1.9.0.
+* Upgrades compile SDK version to 33.
+
+## 1.0.17
+
+* Adds compatibility with `intl` 0.18.0.
+
+## 1.0.16
+
+* Updates androidx.fragment version to 1.5.5.
+
+## 1.0.15
+
+* Updates androidx.fragment version to 1.5.4.
+
+## 1.0.14
+
+* Fixes device credential authentication for API versions before R.
+
+## 1.0.13
+
+* Updates imports for `prefer_relative_imports`.
+
+## 1.0.12
+
+* Updates androidx.fragment version to 1.5.2.
+* Updates minimum Flutter version to 2.10.
+
+## 1.0.11
+
+* Fixes avoid_redundant_argument_values lint warnings and minor typos.
+
+## 1.0.10
+
+* Updates `local_auth_platform_interface` constraint to the correct minimum
+  version.
+
+## 1.0.9
+
+* Updates  androidx.fragment version to 1.5.1.
+
+## 1.0.8
+
+* Removes usages of `FingerprintManager` and other `BiometricManager` deprecated method usages.
+
+## 1.0.7
+
+* Updates gradle version to 7.2.1.
+
+## 1.0.6
+
+* Updates androidx.core version to 1.8.0.
+
+## 1.0.5
+
+* Updates references to the obsolete master branch.
+
 ## 1.0.4
 
 * Minor fixes for new analysis options.

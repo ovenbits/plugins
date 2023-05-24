@@ -6,12 +6,11 @@ package io.flutter.plugins.webviewflutter;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 
 import android.os.Handler;
 import io.flutter.plugins.webviewflutter.JavaScriptChannelHostApiImpl.JavaScriptChannelCreator;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -30,7 +29,7 @@ public class JavaScriptChannelTest {
 
   @Before
   public void setUp() {
-    instanceManager = new InstanceManager();
+    instanceManager = InstanceManager.open(identifier -> {});
 
     final JavaScriptChannelCreator javaScriptChannelCreator =
         new JavaScriptChannelCreator() {
@@ -52,14 +51,14 @@ public class JavaScriptChannelTest {
     hostApiImpl.create(0L, "aChannelName");
   }
 
+  @After
+  public void tearDown() {
+    instanceManager.close();
+  }
+
   @Test
   public void postMessage() {
     javaScriptChannel.postMessage("A message post.");
     verify(mockFlutterApi).postMessage(eq(javaScriptChannel), eq("A message post."), any());
-
-    reset(mockFlutterApi);
-    javaScriptChannel.release();
-    javaScriptChannel.postMessage("a message");
-    verify(mockFlutterApi, never()).postMessage((JavaScriptChannel) any(), any(), any());
   }
 }

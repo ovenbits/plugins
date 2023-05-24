@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
@@ -62,12 +61,11 @@ class _FutureMemoryImage extends ImageProvider<_FutureMemoryImage> {
     return SynchronousFuture<_FutureMemoryImage>(this);
   }
 
-  // ignore:deprecated_member_use
-  /// See [ImageProvider.load].
-  // TODO(jmagman): Implement the new API once it lands, https://github.com/flutter/flutter/issues/103556
   @override
-  // ignore: deprecated_member_use
-  ImageStreamCompleter load(_FutureMemoryImage key, DecoderCallback decode) {
+  ImageStreamCompleter loadBuffer(
+    _FutureMemoryImage key,
+    DecoderBufferCallback decode, // ignore: deprecated_member_use
+  ) {
     return _FutureImageStreamCompleter(
       codec: _loadAsync(key, decode),
       futureScale: _futureScale,
@@ -76,13 +74,10 @@ class _FutureMemoryImage extends ImageProvider<_FutureMemoryImage> {
 
   Future<ui.Codec> _loadAsync(
     _FutureMemoryImage key,
-    // ignore: deprecated_member_use
-    DecoderCallback decode,
-  ) async {
+    DecoderBufferCallback decode, // ignore: deprecated_member_use
+  ) {
     assert(key == this);
-    return _futureBytes.then((Uint8List bytes) {
-      return decode(bytes);
-    });
+    return _futureBytes.then(ui.ImmutableBuffer.fromUint8List).then(decode);
   }
 
   /// See [ImageProvider.operator==].

@@ -42,7 +42,7 @@ class SaveTextPage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Container(
+            SizedBox(
               width: 300,
               child: TextField(
                 minLines: 1,
@@ -53,7 +53,7 @@ class SaveTextPage extends StatelessWidget {
                 ),
               ),
             ),
-            Container(
+            SizedBox(
               width: 300,
               child: TextField(
                 minLines: 1,
@@ -67,7 +67,10 @@ class SaveTextPage extends StatelessWidget {
             const SizedBox(height: 10),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
+                // TODO(darrenaustin): Migrate to new API once it lands in stable: https://github.com/flutter/flutter/issues/105724
+                // ignore: deprecated_member_use
                 primary: Colors.blue,
+                // ignore: deprecated_member_use
                 onPrimary: Colors.white,
               ),
               onPressed: _saveFile,

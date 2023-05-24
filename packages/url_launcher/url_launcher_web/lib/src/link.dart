@@ -76,7 +76,7 @@ class WebLinkDelegateState extends State<WebLinkDelegate> {
           child: PlatformViewLink(
             viewType: linkViewType,
             onCreatePlatformView: (PlatformViewCreationParams params) {
-              _controller = LinkViewController.fromParams(params, context);
+              _controller = LinkViewController.fromParams(params);
               return _controller
                 ..setUri(widget.link.uri)
                 ..setTarget(widget.link.target);
@@ -100,7 +100,7 @@ class WebLinkDelegateState extends State<WebLinkDelegate> {
 /// Controls link views.
 class LinkViewController extends PlatformViewController {
   /// Creates a [LinkViewController] instance with the unique [viewId].
-  LinkViewController(this.viewId, this.context) {
+  LinkViewController(this.viewId) {
     if (_instances.isEmpty) {
       // This is the first controller being created, attach the global click
       // listener.
@@ -113,12 +113,17 @@ class LinkViewController extends PlatformViewController {
   /// platform view [params].
   factory LinkViewController.fromParams(
     PlatformViewCreationParams params,
-    BuildContext context,
   ) {
     final int viewId = params.id;
-    final LinkViewController controller = LinkViewController(viewId, context);
+    final LinkViewController controller = LinkViewController(viewId);
     controller._initialize().then((_) {
-      params.onPlatformViewCreated(viewId);
+      /// Because _initialize is async, it can happen that [LinkViewController.dispose]
+      /// may get called before this `then` callback.
+      /// Check that the `controller` that was created by this factory is not
+      /// disposed before calling `onPlatformViewCreated`.
+      if (_instances[viewId] == controller) {
+        params.onPlatformViewCreated(viewId);
+      }
     });
     return controller;
   }
@@ -158,9 +163,6 @@ class LinkViewController extends PlatformViewController {
 
   @override
   final int viewId;
-
-  /// The context of the [Link] widget that created this controller.
-  final BuildContext context;
 
   late html.Element _element;
 
@@ -208,7 +210,7 @@ class LinkViewController extends PlatformViewController {
     // browser handle it.
     event.preventDefault();
     final String routeName = _uri.toString();
-    pushRouteNameToFramework(context, routeName);
+    pushRouteNameToFramework(null, routeName);
   }
 
   Uri? _uri;
@@ -245,9 +247,13 @@ class LinkViewController extends PlatformViewController {
         return '_self';
       case LinkTarget.blank:
         return '_blank';
-      default:
-        throw Exception('Unknown LinkTarget value $target.');
     }
+    // The enum comes from a different package, which could get a new value at
+    // any time, so provide a fallback that ensures this won't break when used
+    // with a version that contains new values. This is deliberately outside
+    // the switch rather than a `default` so that the linter will flag the
+    // switch as needing an update.
+    return '_self';
   }
 
   @override

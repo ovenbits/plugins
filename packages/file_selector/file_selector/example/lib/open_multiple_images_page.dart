@@ -14,11 +14,12 @@ class OpenMultipleImagesPage extends StatelessWidget {
   const OpenMultipleImagesPage({Key? key}) : super(key: key);
 
   Future<void> _openImageFile(BuildContext context) async {
-    final XTypeGroup jpgsTypeGroup = XTypeGroup(
+    // #docregion MultiOpen
+    const XTypeGroup jpgsTypeGroup = XTypeGroup(
       label: 'JPEGs',
       extensions: <String>['jpg', 'jpeg'],
     );
-    final XTypeGroup pngTypeGroup = XTypeGroup(
+    const XTypeGroup pngTypeGroup = XTypeGroup(
       label: 'PNGs',
       extensions: <String>['png'],
     );
@@ -26,14 +27,17 @@ class OpenMultipleImagesPage extends StatelessWidget {
       jpgsTypeGroup,
       pngTypeGroup,
     ]);
+    // #enddocregion MultiOpen
     if (files.isEmpty) {
       // Operation was canceled by the user.
       return;
     }
-    await showDialog<void>(
-      context: context,
-      builder: (BuildContext context) => MultipleImagesDisplay(files),
-    );
+    if (context.mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (BuildContext context) => MultipleImagesDisplay(files),
+      );
+    }
   }
 
   @override
@@ -48,7 +52,10 @@ class OpenMultipleImagesPage extends StatelessWidget {
           children: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
+                // TODO(darrenaustin): Migrate to new API once it lands in stable: https://github.com/flutter/flutter/issues/105724
+                // ignore: deprecated_member_use
                 primary: Colors.blue,
+                // ignore: deprecated_member_use
                 onPrimary: Colors.white,
               ),
               child: const Text('Press to open multiple images (png, jpg)'),
